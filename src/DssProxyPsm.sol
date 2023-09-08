@@ -21,6 +21,10 @@ interface VatLike {
     function move(address src, address dst, uint256 rad) external;
     function slip(bytes32 ilk, address usr, int256 wad) external;
     function suck(address u, address v, uint256 rad) external;
+    function ilks(bytes32)
+        external
+        view
+        returns (uint256 Art, uint256 rate, uint256 spot, uint256 line, uint256 dust);
 }
 
 interface GemLike {
@@ -65,17 +69,17 @@ contract DssProxyPsm {
     address public vow;
 
     /// @notice The max amount of pre-minted Dai to be held in this contract.
-    /// @dev `wad` precision
+    /// @dev `wad` precision.
     uint256 public hwm;
-    /// @dev `wad` precision
+    /// @dev `wad` precision.
     /// @notice The min amount of pre-minted Dai to be held in this contract.
     uint256 public lwm;
 
     /// @notice Toll in.
-    /// @dev `wad` precision
+    /// @dev `wad` precision.
     int256 public tin;
     /// @notice Toll out.
-    /// @dev `wad` precision
+    /// @dev `wad` precision.
     int256 public tout;
 
     /// @dev Signed `wad` precision.
@@ -271,7 +275,7 @@ contract DssProxyPsm {
         require(balance < hwm, "ProxyPsm/refill-unavailable");
 
         unchecked {
-            refilled = balance - hwm;
+            refilled = hwm - balance;
         }
 
         _doRefill(refilled);
