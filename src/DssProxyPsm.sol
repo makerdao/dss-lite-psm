@@ -366,4 +366,13 @@ contract DssProxyPsm {
 
         emit SellGem(usr, gemAmt, fee);
     }
+
+    function exit(address usr, uint256 gemAmt) external {
+        uint256 gemWad = gemAmt * to18ConversionFactor;
+
+        vat.slip(ilk, msg.sender, -_int256(gemWad));
+        require(gem.transferFrom(keg, usr, gemAmt), "ProxyPsm/gem-transfer-failed");
+
+        emit Exit(usr, gemAmt);
+    }
 }
