@@ -68,11 +68,8 @@ contract DssProxyPsm {
     /// @notice Maker Protocol balance sheet.
     address public vow;
 
-    /// @notice The max amount of pre-minted Dai to be held in this contract.
-    /// @dev `wad` precision.
-    uint256 public hwm;
-    /// @dev `wad` precision.
     /// @notice The min amount of pre-minted Dai to be held in this contract.
+    /// @dev `wad` precision.
     uint256 public lwm;
 
     /// @notice Toll in.
@@ -108,7 +105,7 @@ contract DssProxyPsm {
     event File(bytes32 indexed what, address data);
     /**
      * @notice A contract parameter was updated.
-     * @param what The changed parameter name. ["lwm", "hwm"].
+     * @param what The changed parameter name. ["lwm"].
      * @param data The new value of the parameter.
      */
     event File(bytes32 indexed what, uint256 data);
@@ -228,16 +225,12 @@ contract DssProxyPsm {
 
     /**
      * @notice Updates a contract parameter.
-     * @param what The changed parameter name. ["lwm", "hwm"].
+     * @param what The changed parameter name. ["lwm", "lot"].
      * @param data The new value of the parameter.
      */
     function file(bytes32 what, uint256 data) external auth {
         if (what == "lwm") {
-            require(data <= hwm, "ProxyPsm/lwm-too-high");
             lwm = data;
-        } else if (what == "hwm") {
-            require(data >= lwm, "ProxyPsm/hwm-too-low");
-            hwm = data;
         } else {
             revert("ProxyPsm/unrecognised-param");
         }
@@ -265,17 +258,19 @@ contract DssProxyPsm {
     }
 
     /**
-     * @notice Mints Dai up to the estabilished `hwm` limit.
+     * @notice Mints Dai up to the estabilished `lot` limit.
      * @dev After a call to this function, the following condition must hold:
-     *      lwm <= dai.balanceOf(this) <= hwm
+     *      lwm <= dai.balanceOf(this) <= lot
      * @return refilled The amount refilled [`wad`].
      */
     function refill() external returns (uint256 refilled) {
         uint256 balance = dai.balanceOf(address(this));
-        require(balance < hwm, "ProxyPsm/refill-unavailable");
+        (, , , uint256 line, ) = vat.ilks(ilk);
+        uint256 lineWad = line / RAY;
+        require(balance < lineWad, "ProxyPsm/refill-unavailable");
 
         unchecked {
-            refilled = hwm - balance;
+            refilled = lineWad - balance;
         }
 
         _doRefill(refilled);
@@ -297,15 +292,17 @@ contract DssProxyPsm {
     /**
      * @notice Drains any excess of Dai.
      * @dev After a call to this function, the following condition must hold:
-     *      dai.balanceOf(this) == hwm
+     *      dai.balanceOf(this) == lineWad
      * @return drained The amount drained [`wad`].
      */
     function drain() external returns (uint256 drained) {
         uint256 balance = dai.balanceOf(address(this));
-        require(balance > hwm, "ProxyPsm/drain-unavailable");
+        (, , , uint256 line, ) = vat.ilks(ilk);
+        uint256 lineWad = line / RAY;
+        require(balance > lineWad, "ProxyPsm/drain-unavailable");
 
         unchecked {
-            drained = balance - hwm;
+            drained = balance - lineWad;
         }
 
         daiJoin.join(address(this), drained);
@@ -353,12 +350,13 @@ contract DssProxyPsm {
             daiOutWad += uint256(-fee);
         }
 
-        uint256 daiBalance = dai.balanceOf(address(this));
+        uint256 balance = dai.balanceOf(address(this));
         // Trigger a refill only if there is not enough Dai to cover the gem sell
         // or if the remaining Dai after the sell would be lower than `lwm`.
-        if (daiBalance < daiOutWad || (daiBalance - daiOutWad) < lwm) {
-            // Make sure the balance of Dai for this contract after the execution is `hwm`.
-            _doRefill(hwm + daiOutWad - daiBalance);
+        if (balance < daiOutWad || (balance - daiOutWad) < lwm) {
+            ( , , , uint256 line, ) = vat.ilks(ilk);
+            uint256 lineWad = line / RAY;
+            _doRefill(lineWad - balance);
         }
 
         require(gem.transferFrom(msg.sender, keg, gemAmt), "ProxyPsm/gem-transfer-failed");
