@@ -169,6 +169,9 @@ contract DssProxyPsm {
 
         dai.approve(daiJoin_, type(uint256).max);
         vat.hope(daiJoin_);
+
+        wards[msg.sender] = 1;
+        emit Rely(msg.sender);
     }
 
     /*//////////////////////////////////
@@ -211,7 +214,7 @@ contract DssProxyPsm {
         if (what == "vow") {
             vow = data;
         } else {
-            revert("ProxyPsm/unrecognised-param");
+            revert("ProxyPsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -230,7 +233,7 @@ contract DssProxyPsm {
         } else if (what == "tout") {
             tout = data;
         } else {
-            revert("ProxyPsm/unrecognised-param");
+            revert("ProxyPsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -246,11 +249,12 @@ contract DssProxyPsm {
         // `spot` is assumed to be 1 (10 ** 27)
         (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
-        require(debt < line, "ProxyPsm/fill-unavailable");
+        require(line > debt, "ProxyPsm/fill-unavailable");
 
         unchecked {
             wad = (line - debt) / RAY;
         }
+        require(wad > 0, "ProxyPsm/fill-unavailable");
 
         vat.slip(ilk, address(this), _int256(wad));
         vat.frob(ilk, address(this), address(this), address(this), _int256(wad), _int256(wad));
@@ -274,6 +278,7 @@ contract DssProxyPsm {
         unchecked {
             wad = (debt - line) / RAY;
         }
+        require(wad > 0, "ProxyPsm/trim-unavailable");
 
         daiJoin.join(address(this), wad);
         vat.frob(ilk, address(this), address(this), address(this), -_int256(wad), -_int256(wad));
