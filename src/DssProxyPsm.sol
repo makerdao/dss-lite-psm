@@ -336,7 +336,7 @@ contract DssProxyPsm {
 
     /**
      * @notice Withdraws `gem` after Emergency Shutdown.
-     * @param usr The destination of the swapped Dai.
+     * @param usr The destination of the gems.
      * @param gemAmt The amount of gem to withdraw. [`gem` precision].
      */
     function exit(address usr, uint256 gemAmt) external {
