@@ -18,9 +18,7 @@ pragma solidity 0.8.16;
 interface VatLike {
     function hope(address usr) external;
     function frob(bytes32 i, address u, address v, address w, int256 dink, int256 dart) external;
-    function move(address src, address dst, uint256 rad) external;
     function slip(bytes32 ilk, address usr, int256 wad) external;
-    function suck(address u, address v, uint256 rad) external;
     function ilks(bytes32)
         external
         view
@@ -29,6 +27,7 @@ interface VatLike {
 
 interface GemLike {
     function approve(address spender, uint256 value) external;
+    function transfer(address to, uint256 value) external returns(bool);
     function transferFrom(address from, address to, uint256 value) external returns(bool);
     function balanceOf(address owner) external view returns (uint256);
     function decimals() external view returns (uint8);
@@ -41,6 +40,17 @@ interface DaiJoinLike {
     function vat() external view returns (address);
 }
 
+/**
+ * @title A lightweight PSM implementation.
+ * @notice Swaps Dai for `gem` at a 1:1 exchange rate.
+ * @notice Fees `tin` and `tout` might apply.
+ * @dev `gem` balance is kept in `keg` instead of this contract.
+ * @dev A few assumptions are made:
+ *      1. There are no other urns for the same `ilk`
+ *      2. Stability fee is always zero for the `ilk`
+ *      3. The `spot` price for gem is always 1.
+        4. `keg` has given infinite approval for `gem` to this contract.
+ */
 contract DssProxyPsm {
     /// @notice Maker Protocol core engine.
     VatLike public immutable vat;
@@ -58,7 +68,7 @@ contract DssProxyPsm {
     /// @notice Dai token.
     GemLike public immutable dai;
 
-    /// @notice The ultimate holder of the funds.
+    /// @notice The ultimate holder of the gems.
     /// @dev `keg` **MUST** give infinite approval for `gem` to this contract.
     address public immutable keg;
 
@@ -68,19 +78,15 @@ contract DssProxyPsm {
     /// @notice Maker Protocol balance sheet.
     address public vow;
 
-    /// @notice The min amount of pre-minted Dai to be held in this contract.
-    /// @dev `wad` precision.
-    uint256 public lwm;
-
     /// @notice Toll in.
     /// @dev `wad` precision.
-    int256 public tin;
+    uint256 public tin;
     /// @notice Toll out.
     /// @dev `wad` precision.
-    int256 public tout;
+    uint256 public tout;
 
-    /// @dev Signed `wad` precision.
-    int256 internal constant SWAD = 10 ** 18;
+    /// @dev `wad` precision.
+    uint256 internal constant WAD = 10 ** 18;
     /// @dev `ray` precision for `vat` manipulation.
     uint256 internal constant RAY = 10 ** 27;
 
@@ -105,40 +111,34 @@ contract DssProxyPsm {
     event File(bytes32 indexed what, address data);
     /**
      * @notice A contract parameter was updated.
-     * @param what The changed parameter name. ["lwm"].
+     * @param what The changed parameter name. ["tin", "tout"].
      * @param data The new value of the parameter.
      */
     event File(bytes32 indexed what, uint256 data);
     /**
-     * @notice A contract parameter was updated.
-     * @param what The changed parameter name. ["tin", "tout"].
-     * @param data The new value of the parameter.
+     * @notice The contract was filled with Dai.
+     * @param wad The amount of Dai filled.
      */
-    event File(bytes32 indexed what, int256 data);
+    event Fill(uint256 wad);
     /**
-     * @notice The contract was refilled with Dai.
-     * @param wad The amount of Dai refilled.
+     * @notice The contract was trimmed of excess Dai.
+     * @param wad The amount of Dai trimmed.
      */
-    event Refill(uint256 wad);
-    /**
-     * @notice The contract was drained of excess Dai.
-     * @param wad The amount of Dai drained.
-     */
-    event Drain(uint256 wad);
+    event Trim(uint256 wad);
     /**
      * @notice A user sold `gem` for Dai>
      * @param owner The user address.
      * @param amt The amount of `gem` sold.
-     * @param fee The amount of fees paid to/received by the user.
+     * @param fee The amount of fees paid by the user.
      */
-    event SellGem(address indexed owner, uint256 amt, int256 fee);
+    event SellGem(address indexed owner, uint256 amt, uint256 fee);
     /**
      * @notice A user bought `gem` with Dai.
      * @param owner The user address.
      * @param amt The amount of `gem` bought.
-     * @param fee The amount of fees paid to/received by the user.
+     * @param fee The amount of fees paid by the user.
      */
-    event BuyGem(address indexed owner, uint256 amt, int256 fee);
+    event BuyGem(address indexed owner, uint256 amt, uint256 fee);
     /**
      * @notice A user has gotten `gem` tokens after Emergency Shutdown
      * @param usr The user address.
@@ -180,12 +180,6 @@ contract DssProxyPsm {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
     }
 
-    /// @dev Divide, but round up.
-    function _divup(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        z = (x + y - 1) / y;
-    }
-
-
     /*//////////////////////////////////
                Administration
     //////////////////////////////////*/
@@ -225,26 +219,11 @@ contract DssProxyPsm {
 
     /**
      * @notice Updates a contract parameter.
-     * @param what The changed parameter name. ["lwm", "lot"].
-     * @param data The new value of the parameter.
-     */
-    function file(bytes32 what, uint256 data) external auth {
-        if (what == "lwm") {
-            lwm = data;
-        } else {
-            revert("ProxyPsm/unrecognised-param");
-        }
-
-        emit File(what, data);
-    }
-
-    /**
-     * @notice Updates a contract parameter.
      * @param what The changed parameter name. ["tin", "tout"].
      * @param data The new value of the parameter.
      */
-    function file(bytes32 what, int256 data) external auth {
-        require(-SWAD <= data && data <= SWAD, "ProxyPsm/out-of-range");
+    function file(bytes32 what, uint256 data) external auth {
+        require(data <= WAD, "ProxyPsm/out-of-range");
 
         if (what == "tin") {
             tin = data;
@@ -258,105 +237,72 @@ contract DssProxyPsm {
     }
 
     /**
-     * @notice Mints Dai up to the estabilished `lot` limit.
-     * @dev After a call to this function, the following condition must hold:
-     *      lwm <= dai.balanceOf(this) <= lot
-     * @return refilled The amount refilled [`wad`].
+     * @notice Mints Dai into this contract up to the debt ceiling.
+     * @return wad The amount filled.
      */
-    function refill() external returns (uint256 refilled) {
-        uint256 balance = dai.balanceOf(address(this));
-        (, , , uint256 line, ) = vat.ilks(ilk);
-        uint256 lineWad = line / RAY;
-        require(balance < lineWad, "ProxyPsm/refill-unavailable");
+    function fill() public returns (uint256 wad) {
+        // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
+        // `rate` is assumed to be 1 (10 ** 27)
+        // `spot` is assumed to be 1 (10 ** 27)
+        (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
+        uint256 debt = Art * RAY;
+        require(debt < line, "ProxyPsm/fill-unavailable");
 
         unchecked {
-            refilled = lineWad - balance;
+            wad = (line - debt) / RAY;
         }
 
-        _doRefill(refilled);
+        vat.slip(ilk, address(this), _int256(wad));
+        vat.frob(ilk, address(this), address(this), address(this), _int256(wad), _int256(wad));
+        daiJoin.exit(address(this), wad);
+
+        emit Fill(wad);
     }
 
     /**
-     * @notice Mints Dai into this contract.
-     * @dev The caller of this funciton is meant to check whether the value is within the limits or not.
-     * @param refilled The amount to refill [`wad`].
+     * @notice Burns any excess of Dai from this contract.
+     * @return wad The amount trimmed.
      */
-    function _doRefill(uint256 refilled) internal {
-        vat.slip(ilk, keg, _int256(refilled));
-        vat.frob(ilk, address(this), keg, address(this), _int256(refilled), _int256(refilled));
-        daiJoin.exit(address(this), refilled);
+    function trim() external returns (uint256 wad) {
+        // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
+        // `rate` is assumed to be 1 (10 ** 27)
+        // `spot` is assumed to be 1 (10 ** 27)
+        (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
+        uint256 debt = Art * RAY;
+        require(debt > line, "ProxyPsm/trim-unavailable");
 
-        emit Refill(refilled);
+        unchecked {
+            wad = (debt - line) / RAY;
+        }
+
+        daiJoin.join(address(this), wad);
+        vat.frob(ilk, address(this), address(this), address(this), -_int256(wad), -_int256(wad));
+        vat.slip(ilk, address(this), -_int256(wad));
+
+        emit Trim(wad);
     }
 
     /**
-     * @notice Drains any excess of Dai.
-     * @dev After a call to this function, the following condition must hold:
-     *      dai.balanceOf(this) == lineWad
-     * @return drained The amount drained [`wad`].
+     * @notice Swaps `gem` into Dai.
+     * @dev If there is not enough Dai liquidity in this contract, it will pull more liquidity up to the debt ceiling
+     *      automatically before proceeding with the swap. If there is not enough room in the debt ceiling to cover
+     *      `daiOutWad`, the transaction will fail.
+     * @param usr The destination of the swapped Dai.
+     * @param gemAmt The amount of gem to swap. [`gem` precision].
+     * @return daiOutWad The amount of Dai swapped.
      */
-    function drain() external returns (uint256 drained) {
-        uint256 balance = dai.balanceOf(address(this));
-        (, , , uint256 line, ) = vat.ilks(ilk);
-        uint256 lineWad = line / RAY;
-        require(balance > lineWad, "ProxyPsm/drain-unavailable");
-
-        unchecked {
-            drained = balance - lineWad;
-        }
-
-        daiJoin.join(address(this), drained);
-        vat.frob(ilk, address(this), keg, address(this), -_int256(drained), -_int256(drained));
-        vat.slip(ilk, keg, -_int256(drained));
-
-        emit Drain(drained);
-    }
-
-    function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
-        uint256 gemWad = gemAmt * to18ConversionFactor;
-        daiInWad = gemWad;
-
-        int256 fee = _int256(gemWad) * tout / SWAD;
-        if (fee > 0) {
-            // Positive fee: more Dai will be transfered to this contract.
-            daiInWad += uint256(fee);
-        } else if (fee < 0) {
-            // Negative fee: less Dai will be transfered to this contract.
-            // Since `tout` is bounded to 100%, this can never overflow.
-            unchecked {
-                daiInWad -= uint256(-fee);
-            }
-        }
-
-        require(dai.transferFrom(msg.sender, address(this), daiInWad), "ProxyPsm/dai-transfer-failed");
-        require(gem.transferFrom(keg, usr, gemAmt), "ProxyPsm/gem-transfer-failed");
-
-        emit BuyGem(usr, gemAmt, fee);
-    }
-
     function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
         uint256 gemWad = gemAmt * to18ConversionFactor;
-        daiOutWad = gemWad;
+        uint256 fee = gemWad * tin / WAD;
 
-        int256 fee = _int256(gemWad) * tin / SWAD;
-        if (fee > 0) {
-            // Positive fee: less Dai will be transfered from this contract.
-            // Since `tin` is bounded to 100%, this can never underflow.
-            unchecked {
-                daiOutWad -= uint256(fee);
-            }
-        } else if (fee < 0) {
-            // Negative fee: more Dai will be transfered from this contract.
-            daiOutWad += uint256(-fee);
+        // Since `tin` is bounded to 100%, this can never underflow.
+        unchecked {
+            daiOutWad = gemWad - fee;
         }
 
-        uint256 balance = dai.balanceOf(address(this));
-        // Trigger a refill only if there is not enough Dai to cover the gem sell
-        // or if the remaining Dai after the sell would be lower than `lwm`.
-        if (balance < daiOutWad || (balance - daiOutWad) < lwm) {
-            ( , , , uint256 line, ) = vat.ilks(ilk);
-            uint256 lineWad = line / RAY;
-            _doRefill(lineWad - balance);
+        // Trigger a fill only if there is not enough Dai to cover the gem sell.
+        if (dai.balanceOf(address(this)) < daiOutWad) {
+            fill();
         }
 
         require(gem.transferFrom(msg.sender, keg, gemAmt), "ProxyPsm/gem-transfer-failed");
@@ -365,6 +311,29 @@ contract DssProxyPsm {
         emit SellGem(usr, gemAmt, fee);
     }
 
+    /**
+     * @notice Swaps Dai into `gem`.
+     * @param usr The destination of the swapped gems.
+     * @param gemAmt The amount of gem to swap. [`gem` precision].
+     * @return daiInWad The amount of Dai required for swapping.
+     */
+    function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
+        uint256 gemWad = gemAmt * to18ConversionFactor;
+        uint256 fee = gemWad * tout / WAD;
+
+        daiInWad = gemWad + fee;
+
+        require(dai.transferFrom(msg.sender, address(this), daiInWad), "ProxyPsm/dai-transfer-failed");
+        require(gem.transferFrom(keg, usr, gemAmt), "ProxyPsm/gem-transfer-failed");
+
+        emit BuyGem(usr, gemAmt, fee);
+    }
+
+    /**
+     * @notice Withdraws `gem` after Emergency Shutdown.
+     * @param usr The destination of the swapped Dai.
+     * @param gemAmt The amount of gem to withdraw. [`gem` precision].
+     */
     function exit(address usr, uint256 gemAmt) external {
         uint256 gemWad = gemAmt * to18ConversionFactor;
 
