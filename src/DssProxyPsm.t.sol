@@ -72,6 +72,9 @@ contract DssProxyPsmTest is DssTest {
         vm.prank(keg);
         usdc.approve(address(proxyPsm), type(uint256).max);
 
+        // Setup the vow for proxyPsm
+        proxyPsm.file("vow", address(dss.vow));
+
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.dai), "Dai");
         vm.label(address(usdc), "USDC");
@@ -205,6 +208,26 @@ contract DssProxyPsmTest is DssTest {
         proxyPsm.trim();
     }
 
+    function testSellGem() public {
+        uint256 gemWad = 175_000 * WAD;
+        uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
+
+        proxyPsm.fill();
+        uint256 pdaiBalance = dss.dai.balanceOf(address(this));
+        uint256 pusdcBalance = usdc.balanceOf(keg);
+
+        vm.expectEmit(true, false, false, true);
+        emit SellGem(address(this), gemAmt, 0);
+
+        uint256 daiOutWad = proxyPsm.sellGem(address(this), gemAmt);
+
+        uint256 daiBalance = dss.dai.balanceOf(address(this));
+        uint256 usdcBalance = usdc.balanceOf(keg);
+
+        assertEq(daiBalance, pdaiBalance + daiOutWad, "sellGem: invalid Dai balance change");
+        assertEq(usdcBalance, pusdcBalance + gemAmt, "sellGem: invalid USDC balance change");
+    }
+
     function testFuzzSellGem(uint256 gemAmt) public {
         gemAmt = bound(gemAmt, 1, usdc.balanceOf(address(this)));
         proxyPsm.fill();
@@ -238,6 +261,29 @@ contract DssProxyPsmTest is DssTest {
 
         (uint256 Art,,, uint256 line,) = dss.vat.ilks(ilk);
         assertEq(Art * RAY, line, "sellGem: invalid Art Art sellGem");
+    }
+
+    function testBuyGem() public {
+        uint256 gemWad = 175_000 * WAD;
+        uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
+
+        proxyPsm.fill();
+        assertEq(usdc.balanceOf(keg), 0, "buyGem: initial keg USDC balance not zero");
+        proxyPsm.sellGem(address(this), gemAmt);
+        assertEq(usdc.balanceOf(keg), gemAmt, "buyGem: invalid keg USDC balance");
+
+        address usr = address(0xd34d);
+        uint256 pusdcBalance = usdc.balanceOf(usr);
+        assertEq(pusdcBalance, 0, "buyGem: invalid usr USDC balance before buyGem");
+
+        vm.expectEmit(true, false, false, true);
+        emit BuyGem(usr, gemAmt, 0);
+
+        proxyPsm.buyGem(usr, gemAmt);
+
+        uint256 usdcBalance = usdc.balanceOf(usr);
+
+        assertEq(usdcBalance, pusdcBalance + gemAmt, "buyGem: invalid usr USDC balance after buyGem");
     }
 
     function testFuzzBuyGem(uint256 gemAmt) public {
@@ -287,6 +333,83 @@ contract DssProxyPsmTest is DssTest {
 
         assertEq(dss.vat.gem(ilk, address(this)), 0, "exit: invalid vat.gem after exit");
         assertEq(usdc.balanceOf(usr), gemAmt, "exit: invalid usdc balance before exit");
+    }
+
+    function testFuzzAccumulatedFees(uint256 tin_, uint256 tout_) public {
+        (uint256 tin, uint256 tout) = _setupFees(tin_, tout_);
+        proxyPsm.fill();
+        uint256 accFees;
+
+        assertEq(proxyPsm.fees(), 0, "fees: invalid fees before swaps");
+
+        uint256 gemWad = 50_000 * WAD;
+        uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
+
+        uint256 expectedSellFee = gemWad * tin / WAD;
+        uint256 daiWadOut = proxyPsm.sellGem(address(this), gemAmt);
+        assertEq(gemWad - daiWadOut, expectedSellFee, "fees: invalid fee on sellGem");
+        accFees += gemWad - daiWadOut;
+
+        uint256 expectedBuyFee = gemWad * tout / WAD;
+        uint256 daiWadIn = proxyPsm.buyGem(address(this), gemAmt);
+        assertEq(daiWadIn - gemWad, expectedBuyFee, "fees: invalid fee on buyGem");
+        accFees += daiWadIn - gemWad;
+
+        assertEq(proxyPsm.fees(), accFees, "fees: invalid accumulated fees");
+    }
+
+    function testFuzzGulpAccumulatedFees(uint256 tin_, uint256 tout_) public {
+        _setupFees(tin_, tout_);
+        proxyPsm.fill();
+
+        assertEq(proxyPsm.fees(), 0, "gulp: invalid fees before swaps");
+
+        uint256 gemWad = 50_000 * WAD;
+        uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
+        proxyPsm.sellGem(address(this), gemAmt);
+        proxyPsm.buyGem(address(this), gemAmt);
+
+        uint256 pvowDai = dss.vat.dai(address(dss.vow));
+        uint256 pdaiBalance = dss.dai.balanceOf(address(proxyPsm));
+        uint256 pfees = proxyPsm.fees();
+
+        proxyPsm.gulp();
+
+        uint256 vowDai = dss.vat.dai(address(dss.vow));
+        uint256 daiBalance = dss.dai.balanceOf(address(proxyPsm));
+        uint256 fees = proxyPsm.fees();
+
+        assertEq(vowDai, pvowDai + (pfees * RAY), "gulp: invalid vat.dai(vow) change after gulp");
+        assertEq(daiBalance, pdaiBalance - pfees, "gulp: invalid dai.balanceOf(proxyPsm) change after gulp");
+        assertEq(fees, 0, "gulp: invalid fees after gulp");
+    }
+
+    function testRevertGulpWhenZeroAccumulatedFees() public {
+        vm.expectRevert("ProxyPsm/gulp-unavailable");
+        proxyPsm.gulp();
+    }
+
+    function testRevertGulpWhenVowIsAddressZero() public {
+        _setupFees(0.001 ether, 0.001 ether);
+        proxyPsm.fill();
+        // Simulate vow being set to `address(0)`
+        proxyPsm.file("vow", address(0));
+
+        uint256 gemWad = 50_000 * WAD;
+        uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
+        proxyPsm.sellGem(address(this), gemAmt);
+        proxyPsm.buyGem(address(this), gemAmt);
+
+        vm.expectRevert("ProxyPsm/gulp-without-vow");
+        proxyPsm.gulp();
+    }
+
+    function _setupFees(uint256 tin_, uint256 tout_) internal returns (uint256 tin, uint256 tout) {
+        tin = bound(tin_, 0.00001 ether, 1 * WAD); // Between 0.001% and 100%
+        tout = bound(tout_, 0.00001 ether, 1 * WAD); // Between 0.001% and 100%
+
+        proxyPsm.file("tin", tin);
+        proxyPsm.file("tout", tout);
     }
 
     function _changeIlkLine(bytes32 ilk_, uint256 dline, bool global) internal returns (uint256) {

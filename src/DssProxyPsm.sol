@@ -78,12 +78,16 @@ contract DssProxyPsm {
     /// @notice Maker Protocol balance sheet.
     address public vow;
 
-    /// @notice Toll in.
-    /// @dev `wad` precision.
+    /// @notice Fee for selling gems.
+    /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tin;
-    /// @notice Toll out.
-    /// @dev `wad` precision.
+    /// @notice Fee for buying gems.
+    /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tout;
+
+    /// @notice Outstanding swapping fees accumulated into this contract.
+    /// @dev `wad` precision.
+    uint256 public fees;
 
     /// @dev `wad` precision.
     uint256 internal constant WAD = 10 ** 18;
@@ -125,6 +129,11 @@ contract DssProxyPsm {
      * @param wad The amount of Dai trimmed.
      */
     event Trim(uint256 wad);
+    /**
+     * @notice Dai accumulated as swap fees was added to the surplus buffer..
+     * @param wad The amount of Dai added.
+     */
+    event Gulp(uint256 wad);
     /**
      * @notice A user sold `gem` for Dai>
      * @param owner The user address.
@@ -239,6 +248,10 @@ contract DssProxyPsm {
         emit File(what, data);
     }
 
+    /*//////////////////////////////////
+                 Automation
+    //////////////////////////////////*/
+
     /**
      * @notice Mints Dai into this contract up to the debt ceiling.
      * @return wad The amount filled.
@@ -249,12 +262,7 @@ contract DssProxyPsm {
         // `spot` is assumed to be 1 (10 ** 27)
         (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
-        require(line > debt, "ProxyPsm/fill-unavailable");
-
-        unchecked {
-            wad = (line - debt) / RAY;
-        }
-        require(wad > 0, "ProxyPsm/fill-unavailable");
+        require(line > debt && (wad = (line - debt) / RAY) > 0, "ProxyPsm/fill-unavailable");
 
         vat.slip(ilk, address(this), _int256(wad));
         vat.frob(ilk, address(this), address(this), address(this), _int256(wad), _int256(wad));
@@ -273,12 +281,7 @@ contract DssProxyPsm {
         // `spot` is assumed to be 1 (10 ** 27)
         (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
-        require(debt > line, "ProxyPsm/trim-unavailable");
-
-        unchecked {
-            wad = (debt - line) / RAY;
-        }
-        require(wad > 0, "ProxyPsm/trim-unavailable");
+        require(debt > line && (wad = (debt - line) / RAY) > 0, "ProxyPsm/trim-unavailable");
 
         daiJoin.join(address(this), wad);
         vat.frob(ilk, address(this), address(this), address(this), -_int256(wad), -_int256(wad));
@@ -286,6 +289,25 @@ contract DssProxyPsm {
 
         emit Trim(wad);
     }
+
+    /**
+     * @notice Incorporates any outstanding accumulated fees into the surplus buffer.
+     * @return wad The amount added to the surplus buffer.
+     */
+    function gulp() external returns (uint256 wad) {
+        require(vow != address(0), "ProxyPsm/gulp-without-vow");
+        require(fees > 0, "ProxyPsm/gulp-unavailable");
+
+        daiJoin.join(vow, fees);
+        wad = fees;
+        fees = 0;
+
+        emit Gulp(wad);
+    }
+
+    /*//////////////////////////////////
+                  Swapping
+    //////////////////////////////////*/
 
     /**
      * @notice Swaps `gem` into Dai.
@@ -300,9 +322,13 @@ contract DssProxyPsm {
         uint256 gemWad = gemAmt * to18ConversionFactor;
         uint256 fee = gemWad * tin / WAD;
 
-        // Since `tin` is bounded to 100%, this can never underflow.
-        unchecked {
-            daiOutWad = gemWad - fee;
+        daiOutWad = gemWad;
+        if (fee > 0) {
+            fees += fee;
+            // Since `tin` is bounded to 100%, this can never underflow.
+            unchecked {
+                daiOutWad -= fee;
+            }
         }
 
         // Trigger a fill only if there is not enough Dai to cover the gem sell.
@@ -326,13 +352,21 @@ contract DssProxyPsm {
         uint256 gemWad = gemAmt * to18ConversionFactor;
         uint256 fee = gemWad * tout / WAD;
 
-        daiInWad = gemWad + fee;
+        daiInWad = gemWad;
+        if (fee > 0) {
+            fees += fee;
+            daiInWad += fee;
+        }
 
         require(dai.transferFrom(msg.sender, address(this), daiInWad), "ProxyPsm/dai-transfer-failed");
         require(gem.transferFrom(keg, usr, gemAmt), "ProxyPsm/gem-transfer-failed");
 
         emit BuyGem(usr, gemAmt, fee);
     }
+
+    /*//////////////////////////////////
+             Emergency Shutdown
+    //////////////////////////////////*/
 
     /**
      * @notice Withdraws `gem` after Emergency Shutdown.
