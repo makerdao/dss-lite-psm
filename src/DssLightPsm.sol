@@ -27,8 +27,8 @@ interface VatLike {
 
 interface GemLike {
     function approve(address spender, uint256 value) external;
-    function transfer(address to, uint256 value) external returns(bool);
-    function transferFrom(address from, address to, uint256 value) external returns(bool);
+    function transfer(address to, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
     function balanceOf(address owner) external view returns (uint256);
     function decimals() external view returns (uint8);
 }
@@ -49,7 +49,7 @@ interface DaiJoinLike {
  *      1. There are no other urns for the same `ilk`
  *      2. Stability fee is always zero for the `ilk`
  *      3. The `spot` price for gem is always 1.
-        4. `keg` has given infinite approval for `gem` to this contract.
+ *      4. The `keg` has given infinite approval for `gem` to this contract.
  */
 contract DssLightPsm {
     /// @notice Maker Protocol core engine.
@@ -60,11 +60,13 @@ contract DssLightPsm {
 
     /// @notice Gem to exchange with Dai.
     GemLike public immutable gem;
+
     /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
     uint256 internal immutable to18ConversionFactor;
 
     /// @notice Dai adapter.
     DaiJoinLike public immutable daiJoin;
+
     /// @notice Dai token.
     GemLike public immutable dai;
 
@@ -73,7 +75,7 @@ contract DssLightPsm {
     address public immutable keg;
 
     /// @notice Addresses with admin access on this contract. `wards[usr]`
-    mapping (address => uint256) public wards;
+    mapping(address => uint256) public wards;
 
     /// @notice Maker Protocol balance sheet.
     address public vow;
@@ -81,6 +83,7 @@ contract DssLightPsm {
     /// @notice Fee for selling gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tin;
+
     /// @notice Fee for buying gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tout;
@@ -260,7 +263,7 @@ contract DssLightPsm {
         // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
         // `rate` is assumed to be 1 (10 ** 27)
         // `spot` is assumed to be 1 (10 ** 27)
-        (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
+        (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
         require(line > debt && (wad = (line - debt) / RAY) > 0, "LightPsm/fill-unavailable");
 
@@ -279,7 +282,7 @@ contract DssLightPsm {
         // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
         // `rate` is assumed to be 1 (10 ** 27)
         // `spot` is assumed to be 1 (10 ** 27)
-        (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
+        (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
         require(debt > line && (wad = (debt - line) / RAY) > 0, "LightPsm/trim-unavailable");
 
