@@ -51,7 +51,7 @@ interface DaiJoinLike {
  *      3. The `spot` price for gem is always 1.
  *      4. The `keg` has given infinite approval for `gem` to this contract.
  */
-contract DssLightPsm {
+contract DssLitePsm {
     /// @notice Maker Protocol core engine.
     VatLike public immutable vat;
 
@@ -159,7 +159,7 @@ contract DssLightPsm {
     event Exit(address indexed usr, uint256 amt);
 
     modifier auth() {
-        require(wards[msg.sender] == 1, "LightPsm/not-authorized");
+        require(wards[msg.sender] == 1, "LitePsm/not-authorized");
         _;
     }
 
@@ -226,7 +226,7 @@ contract DssLightPsm {
         if (what == "vow") {
             vow = data;
         } else {
-            revert("LightPsm/file-unrecognized-param");
+            revert("LitePsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -238,14 +238,14 @@ contract DssLightPsm {
      * @param data The new value of the parameter.
      */
     function file(bytes32 what, uint256 data) external auth {
-        require(data <= WAD, "LightPsm/out-of-range");
+        require(data <= WAD, "LitePsm/out-of-range");
 
         if (what == "tin") {
             tin = data;
         } else if (what == "tout") {
             tout = data;
         } else {
-            revert("LightPsm/file-unrecognized-param");
+            revert("LitePsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -263,9 +263,9 @@ contract DssLightPsm {
         // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
         // `rate` is assumed to be 1 (10 ** 27)
         // `spot` is assumed to be 1 (10 ** 27)
-        (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
+        (uint256 Art,,, uint256 line,) = vat.ilks(ilk); // ilk = LIGHT_PSM_USDC_A - 1.24B
         uint256 debt = Art * RAY;
-        require(line > debt && (wad = (line - debt) / RAY) > 0, "LightPsm/fill-unavailable");
+        require(line > debt && (wad = (line - debt) / RAY) > 0, "LitePsm/fill-unavailable");
 
         vat.slip(ilk, address(this), _int256(wad));
         vat.frob(ilk, address(this), address(this), address(this), _int256(wad), _int256(wad));
@@ -284,7 +284,7 @@ contract DssLightPsm {
         // `spot` is assumed to be 1 (10 ** 27)
         (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
-        require(debt > line && (wad = (debt - line) / RAY) > 0, "LightPsm/trim-unavailable");
+        require(debt > line && (wad = (debt - line) / RAY) > 0, "LitePsm/trim-unavailable");
 
         daiJoin.join(address(this), wad);
         vat.frob(ilk, address(this), address(this), address(this), -_int256(wad), -_int256(wad));
@@ -298,8 +298,8 @@ contract DssLightPsm {
      * @return wad The amount added to the surplus buffer.
      */
     function gulp() external returns (uint256 wad) {
-        require(vow != address(0), "LightPsm/gulp-without-vow");
-        require(fees > 0, "LightPsm/gulp-unavailable");
+        require(vow != address(0), "LitePsm/gulp-without-vow");
+        require(fees > 0, "LitePsm/gulp-unavailable");
 
         daiJoin.join(vow, fees);
         wad = fees;
@@ -339,8 +339,8 @@ contract DssLightPsm {
             fill();
         }
 
-        require(gem.transferFrom(msg.sender, keg, gemAmt), "LightPsm/gem-transfer-failed");
-        require(dai.transfer(usr, daiOutWad), "LightPsm/dai-transfer-failed");
+        require(gem.transferFrom(msg.sender, keg, gemAmt), "LitePsm/gem-transfer-failed");
+        require(dai.transfer(usr, daiOutWad), "LitePsm/dai-transfer-failed");
 
         emit SellGem(usr, gemAmt, fee);
     }
@@ -361,8 +361,8 @@ contract DssLightPsm {
             daiInWad += fee;
         }
 
-        require(dai.transferFrom(msg.sender, address(this), daiInWad), "LightPsm/dai-transfer-failed");
-        require(gem.transferFrom(keg, usr, gemAmt), "LightPsm/gem-transfer-failed");
+        require(dai.transferFrom(msg.sender, address(this), daiInWad), "LitePsm/dai-transfer-failed");
+        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
 
         emit BuyGem(usr, gemAmt, fee);
     }
@@ -380,7 +380,7 @@ contract DssLightPsm {
         uint256 gemWad = gemAmt * to18ConversionFactor;
 
         vat.slip(ilk, msg.sender, -_int256(gemWad));
-        require(gem.transferFrom(keg, usr, gemAmt), "LightPsm/gem-transfer-failed");
+        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
 
         emit Exit(usr, gemAmt);
     }
