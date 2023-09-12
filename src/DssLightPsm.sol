@@ -51,7 +51,7 @@ interface DaiJoinLike {
  *      3. The `spot` price for gem is always 1.
         4. `keg` has given infinite approval for `gem` to this contract.
  */
-contract DssProxyPsm {
+contract DssLightPsm {
     /// @notice Maker Protocol core engine.
     VatLike public immutable vat;
 
@@ -156,7 +156,7 @@ contract DssProxyPsm {
     event Exit(address indexed usr, uint256 amt);
 
     modifier auth() {
-        require(wards[msg.sender] == 1, "ProxyPsm/not-authorized");
+        require(wards[msg.sender] == 1, "LightPsm/not-authorized");
         _;
     }
 
@@ -223,7 +223,7 @@ contract DssProxyPsm {
         if (what == "vow") {
             vow = data;
         } else {
-            revert("ProxyPsm/file-unrecognized-param");
+            revert("LightPsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -235,14 +235,14 @@ contract DssProxyPsm {
      * @param data The new value of the parameter.
      */
     function file(bytes32 what, uint256 data) external auth {
-        require(data <= WAD, "ProxyPsm/out-of-range");
+        require(data <= WAD, "LightPsm/out-of-range");
 
         if (what == "tin") {
             tin = data;
         } else if (what == "tout") {
             tout = data;
         } else {
-            revert("ProxyPsm/file-unrecognized-param");
+            revert("LightPsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -262,7 +262,7 @@ contract DssProxyPsm {
         // `spot` is assumed to be 1 (10 ** 27)
         (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
-        require(line > debt && (wad = (line - debt) / RAY) > 0, "ProxyPsm/fill-unavailable");
+        require(line > debt && (wad = (line - debt) / RAY) > 0, "LightPsm/fill-unavailable");
 
         vat.slip(ilk, address(this), _int256(wad));
         vat.frob(ilk, address(this), address(this), address(this), _int256(wad), _int256(wad));
@@ -281,7 +281,7 @@ contract DssProxyPsm {
         // `spot` is assumed to be 1 (10 ** 27)
         (uint256 Art, , , uint256 line, ) = vat.ilks(ilk);
         uint256 debt = Art * RAY;
-        require(debt > line && (wad = (debt - line) / RAY) > 0, "ProxyPsm/trim-unavailable");
+        require(debt > line && (wad = (debt - line) / RAY) > 0, "LightPsm/trim-unavailable");
 
         daiJoin.join(address(this), wad);
         vat.frob(ilk, address(this), address(this), address(this), -_int256(wad), -_int256(wad));
@@ -295,8 +295,8 @@ contract DssProxyPsm {
      * @return wad The amount added to the surplus buffer.
      */
     function gulp() external returns (uint256 wad) {
-        require(vow != address(0), "ProxyPsm/gulp-without-vow");
-        require(fees > 0, "ProxyPsm/gulp-unavailable");
+        require(vow != address(0), "LightPsm/gulp-without-vow");
+        require(fees > 0, "LightPsm/gulp-unavailable");
 
         daiJoin.join(vow, fees);
         wad = fees;
@@ -336,8 +336,8 @@ contract DssProxyPsm {
             fill();
         }
 
-        require(gem.transferFrom(msg.sender, keg, gemAmt), "ProxyPsm/gem-transfer-failed");
-        require(dai.transfer(usr, daiOutWad), "ProxyPsm/dai-transfer-failed");
+        require(gem.transferFrom(msg.sender, keg, gemAmt), "LightPsm/gem-transfer-failed");
+        require(dai.transfer(usr, daiOutWad), "LightPsm/dai-transfer-failed");
 
         emit SellGem(usr, gemAmt, fee);
     }
@@ -358,8 +358,8 @@ contract DssProxyPsm {
             daiInWad += fee;
         }
 
-        require(dai.transferFrom(msg.sender, address(this), daiInWad), "ProxyPsm/dai-transfer-failed");
-        require(gem.transferFrom(keg, usr, gemAmt), "ProxyPsm/gem-transfer-failed");
+        require(dai.transferFrom(msg.sender, address(this), daiInWad), "LightPsm/dai-transfer-failed");
+        require(gem.transferFrom(keg, usr, gemAmt), "LightPsm/gem-transfer-failed");
 
         emit BuyGem(usr, gemAmt, fee);
     }
@@ -377,7 +377,7 @@ contract DssProxyPsm {
         uint256 gemWad = gemAmt * to18ConversionFactor;
 
         vat.slip(ilk, msg.sender, -_int256(gemWad));
-        require(gem.transferFrom(keg, usr, gemAmt), "ProxyPsm/gem-transfer-failed");
+        require(gem.transferFrom(keg, usr, gemAmt), "LightPsm/gem-transfer-failed");
 
         emit Exit(usr, gemAmt);
     }
