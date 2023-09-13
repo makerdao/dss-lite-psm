@@ -252,7 +252,7 @@ contract DssLitePsm {
     }
 
     /*//////////////////////////////////
-                 Automation
+                Bookkeeping
     //////////////////////////////////*/
 
     /**
@@ -324,8 +324,8 @@ contract DssLitePsm {
     function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
         uint256 gemWad = gemAmt * to18ConversionFactor;
         uint256 fee = gemWad * tin / WAD;
-
         daiOutWad = gemWad;
+
         if (fee > 0) {
             fees += fee;
             // Since `tin` is bounded to 100%, this can never underflow.
@@ -354,8 +354,8 @@ contract DssLitePsm {
     function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
         uint256 gemWad = gemAmt * to18ConversionFactor;
         uint256 fee = gemWad * tout / WAD;
-
         daiInWad = gemWad;
+
         if (fee > 0) {
             fees += fee;
             daiInWad += fee;
