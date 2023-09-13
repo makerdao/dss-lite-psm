@@ -156,7 +156,7 @@ contract DssLitePsm {
      * @param usr The user address.
      * @param amt The amount of `gem` received.
      */
-    event Exit(address indexed usr, uint256 amt);
+    event Redeem(address indexed usr, uint256 amt);
 
     modifier auth() {
         require(wards[msg.sender] == 1, "LitePsm/not-authorized");
@@ -376,12 +376,12 @@ contract DssLitePsm {
      * @param usr The destination of the gems.
      * @param gemAmt The amount of gem to withdraw. [`gem` precision].
      */
-    function exit(address usr, uint256 gemAmt) external {
+    function redeem(address usr, uint256 gemAmt) external {
         uint256 gemWad = gemAmt * to18ConversionFactor;
 
         vat.slip(ilk, msg.sender, -_int256(gemWad));
         require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
 
-        emit Exit(usr, gemAmt);
+        emit Redeem(usr, gemAmt);
     }
 }

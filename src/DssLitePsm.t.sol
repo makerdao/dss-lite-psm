@@ -317,7 +317,7 @@ contract DssLitePsmTest is DssTest {
         litePsm.buyGem(address(this), 1);
     }
 
-    function testExit() public {
+    function testRedeem() public {
         address usr = address(0x1234);
         uint256 gemWad = 50 * WAD;
         uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
@@ -326,13 +326,15 @@ contract DssLitePsmTest is DssTest {
         // Mimick the state after Emergency Shutdown: users will having gems.
         dss.vat.slip(ilk, address(this), int256(gemWad));
 
-        assertEq(dss.vat.gem(ilk, address(this)), gemWad, "exit: invalid vat.gem before exit");
-        assertEq(usdc.balanceOf(usr), 0, "exit: invalid usdc balance before exit");
+        assertEq(dss.vat.gem(ilk, address(this)), gemWad, "redeem: invalid vat.gem before redeem");
+        assertEq(usdc.balanceOf(usr), 0, "redeem: invalid usdc balance before redeem");
 
-        litePsm.exit(usr, gemAmt);
+        vm.expectEmit(true, false, false, true);
+        emit Redeem(usr, gemAmt);
+        litePsm.redeem(usr, gemAmt);
 
-        assertEq(dss.vat.gem(ilk, address(this)), 0, "exit: invalid vat.gem after exit");
-        assertEq(usdc.balanceOf(usr), gemAmt, "exit: invalid usdc balance before exit");
+        assertEq(dss.vat.gem(ilk, address(this)), 0, "redeem: invalid vat.gem after redeem");
+        assertEq(usdc.balanceOf(usr), gemAmt, "redeem: invalid usdc balance before redeem");
     }
 
     function testFuzzAccumulatedFees(uint256 tin_, uint256 tout_) public {
@@ -373,6 +375,8 @@ contract DssLitePsmTest is DssTest {
         uint256 pdaiBalance = dss.dai.balanceOf(address(litePsm));
         uint256 pfees = litePsm.fees();
 
+        vm.expectEmit(false, false, false, true);
+        emit Gulp(pfees);
         litePsm.gulp();
 
         uint256 vowDai = dss.vat.dai(address(dss.vow));
@@ -436,6 +440,8 @@ contract DssLitePsmTest is DssTest {
 
     event Fill(uint256 wad);
     event Trim(uint256 wad);
+    event Gulp(uint256 wad);
+    event Redeem(address indexed usr, uint256 amt);
     event SellGem(address indexed owner, uint256 amt, uint256 fee);
     event BuyGem(address indexed owner, uint256 amt, uint256 fee);
 }
