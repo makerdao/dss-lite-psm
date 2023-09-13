@@ -84,14 +84,30 @@ contract DssLitePsmTest is DssTest {
         assertEq(litePsm.__to18ConversionFactor(), 10 ** (18 - usdc.decimals()));
     }
 
+    /*//////////////////////////////////
+               Administration
+    //////////////////////////////////*/
+
     function testAuth() public {
         checkAuth(address(litePsm), "LitePsm");
     }
 
+    function testAuthMethods() public {
+        // Revoke ward role for this contract
+        GodMode.setWard(address(litePsm), address(this), 0);
+        checkModifier(address(litePsm), "LitePsm/not-authorized", [DssLitePsm.kiss.selector, DssLitePsm.diss.selector]);
+    }
+
+    function testOnlyBudMethods() public {
+        checkModifier(
+            address(litePsm), "LitePsm/not-bud", [DssLitePsm.buyGemNoFee.selector, DssLitePsm.sellGemNoFee.selector]
+        );
+    }
+
     function testFile() public {
-        /*//////////////////////////////
-                 tin & tout
-        //////////////////////////////*/
+        /*//////////////////////////////////
+                     tin & tout
+        //////////////////////////////////*/
         assertEq(litePsm.wards(address(this)), 1, "Invalid ward setting");
 
         vm.expectRevert("LitePsm/out-of-range");
@@ -102,17 +118,19 @@ contract DssLitePsmTest is DssTest {
 
         checkFileUint(address(litePsm), "LitePsm", ["tin", "tout"]);
 
-        /*//////////////////////////////
-                    vow
-        //////////////////////////////*/
+        /*//////////////////////////////////
+                        vow
+        //////////////////////////////////*/
 
         checkFileAddress(address(litePsm), "LitePsm", ["vow"]);
     }
 
+    /*//////////////////////////////////
+                 Bookeeping
+    //////////////////////////////////*/
+
     function testFill() public {
-        /*//////////////////////////////
-                  State Before
-        //////////////////////////////*/
+        /*/////// State Before /////////*/
         uint256 pdaiBalance = dss.dai.balanceOf(address(litePsm));
         assertEq(pdaiBalance, 0, "fill: pdaiBalance is not zero");
 
@@ -133,9 +151,7 @@ contract DssLitePsmTest is DssTest {
 
         uint256 filled = litePsm.fill();
 
-        /*//////////////////////////////
-                  State After
-        //////////////////////////////*/
+        /*/////// State After /////////*/
 
         uint256 daiBalance = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalance, pdaiBalance + filled, "fill: daiBalance is invalid");
@@ -207,6 +223,10 @@ contract DssLitePsmTest is DssTest {
         vm.expectRevert("LitePsm/trim-unavailable");
         litePsm.trim();
     }
+
+    /*//////////////////////////////////
+          Permissionless Swapping
+    //////////////////////////////////*/
 
     function testSellGem() public {
         uint256 gemWad = 175_000 * WAD;
@@ -317,6 +337,10 @@ contract DssLitePsmTest is DssTest {
         litePsm.buyGem(address(this), 1);
     }
 
+    /*//////////////////////////////////
+             Emergency Shutdown
+    //////////////////////////////////*/
+
     function testRedeem() public {
         address usr = address(0x1234);
         uint256 gemWad = 50 * WAD;
@@ -336,6 +360,10 @@ contract DssLitePsmTest is DssTest {
         assertEq(dss.vat.gem(ilk, address(this)), 0, "redeem: invalid vat.gem after redeem");
         assertEq(usdc.balanceOf(usr), gemAmt, "redeem: invalid usdc balance before redeem");
     }
+
+    /*//////////////////////////////////
+                    Fees
+    //////////////////////////////////*/
 
     function testFuzzAccumulatedFees(uint256 tin_, uint256 tout_) public {
         (uint256 tin, uint256 tout) = _setupFees(tin_, tout_);
@@ -408,12 +436,50 @@ contract DssLitePsmTest is DssTest {
         litePsm.gulp();
     }
 
+    /*//////////////////////////////////
+           Permissioned Swapping
+    //////////////////////////////////*/
+
+    function testPermissionedSwapsDoesNotAccumulateFees() public {
+        _setupFees(0.001 ether, 0.001 ether);
+        _setupFeeExemption(address(this));
+
+        litePsm.fill();
+        address gemReceiver = address(0xdead1234);
+        address daiReceiver = address(0x117e1234);
+
+        assertEq(usdc.balanceOf(gemReceiver), 0, "no fees: invalid gem balance before swaps");
+        assertEq(dss.dai.balanceOf(daiReceiver), 0, "no fees: invalid dai balance before swaps");
+        assertEq(litePsm.fees(), 0, "no fees: invalid fees before swaps");
+
+        uint256 gemWad = 50_000 * WAD;
+        uint256 gemAmt = gemWad / 10 ** (18 - usdc.decimals());
+
+        uint256 daiWadOut = litePsm.sellGemNoFee(daiReceiver, gemAmt);
+        assertEq(daiWadOut, gemWad, "no fees: unexpected fee on sellGemNoFee");
+        assertEq(dss.dai.balanceOf(daiReceiver), daiWadOut, "no fees: invalid dai balance after sellGemNoFee");
+        assertEq(litePsm.fees(), 0, "no fees: unexpected accumulated fees on sellGemNoFee");
+
+        uint256 daiWadIn = litePsm.buyGemNoFee(gemReceiver, gemAmt);
+        assertEq(daiWadIn, gemWad, "no fees: unexpected fee on buyGem");
+        assertEq(usdc.balanceOf(gemReceiver), gemAmt, "no fees: invalid gem balance after buyGemNoFee");
+        assertEq(litePsm.fees(), 0, "no fees: unexpected accumulated fees on buyGemNoFee");
+    }
+
+    /*//////////////////////////////////
+                  Helpers
+    //////////////////////////////////*/
+
     function _setupFees(uint256 tin_, uint256 tout_) internal returns (uint256 tin, uint256 tout) {
         tin = bound(tin_, 0.00001 ether, 1 * WAD); // Between 0.001% and 100%
         tout = bound(tout_, 0.00001 ether, 1 * WAD); // Between 0.001% and 100%
 
         litePsm.file("tin", tin);
         litePsm.file("tout", tout);
+    }
+
+    function _setupFeeExemption(address who) internal {
+        litePsm.kiss(who);
     }
 
     function _changeIlkLine(bytes32 ilk_, uint256 dline, bool global) internal returns (uint256) {

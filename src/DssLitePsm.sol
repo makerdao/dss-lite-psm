@@ -77,6 +77,9 @@ contract DssLitePsm {
     /// @notice Addresses with admin access on this contract. `wards[usr]`
     mapping(address => uint256) public wards;
 
+    /// @notice Addresses with permission to swap with no fees. `bud[usr]`
+    mapping(address => uint256) public bud;
+
     /// @notice Maker Protocol balance sheet.
     address public vow;
 
@@ -94,6 +97,7 @@ contract DssLitePsm {
 
     /// @dev `wad` precision.
     uint256 internal constant WAD = 10 ** 18;
+
     /// @dev `ray` precision for `vat` manipulation.
     uint256 internal constant RAY = 10 ** 27;
 
@@ -110,6 +114,16 @@ contract DssLitePsm {
      * @param usr The user address.
      */
     event Deny(address indexed usr);
+    /**
+     * @notice `who` was granted permission to swap without any fees.
+     * @param who The user address.
+     */
+    event Kiss(address indexed who);
+    /**
+     * @notice Permission revoked for `who` to swap without any fees.
+     * @param who The user address.
+     */
+    event Diss(address indexed who);
     /**
      * @notice A contract parameter was updated.
      * @param what The changed parameter name. ["vow"].
@@ -160,6 +174,11 @@ contract DssLitePsm {
 
     modifier auth() {
         require(wards[msg.sender] == 1, "LitePsm/not-authorized");
+        _;
+    }
+
+    modifier onlyBud() {
+        require(bud[msg.sender] == 1, "LitePsm/not-bud");
         _;
     }
 
@@ -215,6 +234,24 @@ contract DssLitePsm {
     function deny(address usr) external auth {
         wards[usr] = 0;
         emit Deny(usr);
+    }
+
+    /**
+     * @notice Grants `who` permission to swap without any fees.
+     * @param who The user address.
+     */
+    function kiss(address who) public auth {
+        bud[who] = 1;
+        emit Kiss(who);
+    }
+
+    /**
+     * @notice Revokes `who` permission to swap without any fees.
+     * @param who The user address.
+     */
+    function diss(address who) public auth {
+        bud[who] = 0;
+        emit Diss(who);
     }
 
     /**
@@ -346,6 +383,31 @@ contract DssLitePsm {
     }
 
     /**
+     * @notice Swaps `gem` into Dai without any fees.
+     * @dev Only users whitelisted through `kiss()` can call this function.
+     * @dev If there is not enough Dai liquidity in this contract, it will pull more liquidity up to the debt ceiling
+     *      automatically before proceeding with the swap. If there is not enough room in the debt ceiling to cover
+     *      `daiOutWad`, the transaction will fail.
+     * @param usr The destination of the swapped Dai.
+     * @param gemAmt The amount of gem to swap. [`gem` precision].
+     * @return daiOutWad The amount of Dai swapped.
+     */
+    function sellGemNoFee(address usr, uint256 gemAmt) external onlyBud returns (uint256 daiOutWad) {
+        uint256 gemWad = gemAmt * to18ConversionFactor;
+        daiOutWad = gemWad;
+
+        // Trigger a fill only if there is not enough Dai to cover the gem sell.
+        if (dai.balanceOf(address(this)) < daiOutWad) {
+            fill();
+        }
+
+        require(gem.transferFrom(msg.sender, keg, gemAmt), "LitePsm/gem-transfer-failed");
+        require(dai.transfer(usr, daiOutWad), "LitePsm/dai-transfer-failed");
+
+        emit SellGem(usr, gemAmt, 0);
+    }
+
+    /**
      * @notice Swaps Dai into `gem`.
      * @param usr The destination of the swapped gems.
      * @param gemAmt The amount of gem to swap. [`gem` precision].
@@ -365,6 +427,23 @@ contract DssLitePsm {
         require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
 
         emit BuyGem(usr, gemAmt, fee);
+    }
+
+    /**
+     * @notice Swaps Dai into `gem` without any fees.
+     * @dev Only users whitelisted through `kiss()` can call this function.
+     * @param usr The destination of the swapped gems.
+     * @param gemAmt The amount of gem to swap. [`gem` precision].
+     * @return daiInWad The amount of Dai required for swapping.
+     */
+    function buyGemNoFee(address usr, uint256 gemAmt) external onlyBud returns (uint256 daiInWad) {
+        uint256 gemWad = gemAmt * to18ConversionFactor;
+        daiInWad = gemWad;
+
+        require(dai.transferFrom(msg.sender, address(this), daiInWad), "LitePsm/dai-transfer-failed");
+        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
+
+        emit BuyGem(usr, gemAmt, 0);
     }
 
     /*//////////////////////////////////
