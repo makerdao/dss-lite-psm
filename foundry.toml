@@ -5,6 +5,5 @@ libs = ["lib"]
 solc = '0.8.16'
 optimizer = false
 
-
 [rpc_endpoints]
 mainnet = "${ETH_RPC_URL}"
