@@ -69,7 +69,36 @@ The unwinding process is more straightforward, as there is no on-band flow:
 
 ## Architecture
 
-TODO.
+A simplified diagram of the `LitePsm` architecture:
+
+```
+                                            buyGemNoFee /            O
+                                      ┌───────────────────────────  -|-
+                                      │     sellGemNoFee            / \
+                                      │
+                                      │                         Whitelisted
+                                      │                            User
+                                      │
+                                      │
+                                      │
+                                      │
+                                      │
+┌─────────┐    gem.approve     ┌──────▼──────┐
+│         ├────────────────────►             │     buyGem /           O
+│   Keg   │                    │   LitePsm   ◄─────────────────────  -|-
+│         ◄────────────────────┤             │     sellGem           / \
+└─────────┘  gem.transferFrom  └──────▲──────┘
+                                      │                              User
+                                      │
+                                      │
+                                      │
+                                      │
+                                      │                               O
+                                      │   fill / trim / gulp         -|-
+                                      └───────────────────────────   / \
+
+                                                                    Keeper
+```
 
 ### Design and Constraints
 
