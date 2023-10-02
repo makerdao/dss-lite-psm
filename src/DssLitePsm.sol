@@ -424,20 +424,13 @@ contract DssLitePsm {
      */
     function fill() public returns (uint256 wad) {
         uint256 gemLiq = gem.balanceOf(address(keg)) * to18ConversionFactor;
-        uint256 daiLiq = cash();
-        require(gemLiq > daiLiq, "LitePsm/fill-unavailable");
-
-        uint256 max;
-        unchecked {
-            max = gemLiq - daiLiq;
-        }
-        return _doFill(max);
+        return _doFill(_subCap(gemLiq, cash()));
     }
 
     /**
      * @notice Mints up to `max` Dai into this contract.
      * @dev The actual minted amount can be limited by the debt ceiling (`line`).
-     * @param max The maximum amount of Dai to mint.
+     * @param max The maximum amount of Dai to mint [`wad`].
      * @return wad The amount of Dai minted.
      */
     function _doFill(uint256 max) internal returns (uint256 wad) {
@@ -448,10 +441,18 @@ contract DssLitePsm {
         uint256 debt = Art * RAY;
         require(line > debt, "LitePsm/fill-line-exceeded");
 
-        wad = _min((line - debt) / RAY, max);
+        uint256 room;
+        unchecked {
+            // `line` and `debt` are in RAD precision.
+            room = (line - debt) / RAY;
+        }
 
-        vat.slip(ilk, address(this), _int256(wad));
-        vat.frob(ilk, address(this), address(this), address(this), _int256(wad), _int256(wad));
+        wad = _min(room, max);
+        require(wad > 0, "LitePsm/fill-unavailable");
+
+        int256 swad = _int256(wad);
+        vat.slip(ilk, address(this), swad);
+        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
         daiJoin.exit(address(this), wad);
 
         emit Fill(wad);
@@ -467,11 +468,11 @@ contract DssLitePsm {
     function trim() external returns (uint256 wad) {
         wad = gush();
         require(wad > 0, "LitePsm/trim-unavailable");
-        int256 swad = _int256(wad);
 
+        int256 swad = -1 * _int256(wad);
         daiJoin.join(address(this), wad);
-        vat.frob(ilk, address(this), address(this), address(this), -swad, -swad);
-        vat.slip(ilk, address(this), -swad);
+        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
+        vat.slip(ilk, address(this), swad);
 
         emit Trim(wad);
         return wad;
