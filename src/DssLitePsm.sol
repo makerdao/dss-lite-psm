@@ -25,7 +25,20 @@ interface VatLike {
         external
         view
         returns (uint256 Art, uint256 rate, uint256 spot, uint256 line, uint256 dust);
-    function live() external view returns (uint256);
+}
+
+interface DaiJoinLike {
+    function exit(address usr, uint256 wad) external;
+    function join(address usr, uint256 wad) external;
+    function dai() external view returns (address);
+    function vat() external view returns (address);
+}
+
+interface DaiLike {
+    function approve(address spender, uint256 value) external;
+    function transfer(address to, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
+    function balanceOf(address owner) external view returns (uint256);
 }
 
 interface GemLike {
@@ -34,13 +47,6 @@ interface GemLike {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
     function balanceOf(address owner) external view returns (uint256);
     function decimals() external view returns (uint8);
-}
-
-interface DaiJoinLike {
-    function exit(address usr, uint256 wad) external;
-    function join(address usr, uint256 wad) external;
-    function dai() external view returns (address);
-    function vat() external view returns (address);
 }
 
 /**
@@ -62,7 +68,7 @@ contract DssLitePsm {
     /// @notice Dai adapter.
     DaiJoinLike public immutable daiJoin;
     /// @notice Dai token.
-    GemLike public immutable dai;
+    DaiLike public immutable dai;
     /// @notice Gem to exchange with Dai.
     GemLike public immutable gem;
     /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
@@ -183,7 +189,7 @@ contract DssLitePsm {
         gem = GemLike(gem_);
         daiJoin = DaiJoinLike(daiJoin_);
         vat = VatLike(daiJoin.vat());
-        dai = GemLike(daiJoin.dai());
+        dai = DaiLike(daiJoin.dai());
         keg = keg_;
 
         to18ConversionFactor = 10 ** (18 - gem.decimals());
