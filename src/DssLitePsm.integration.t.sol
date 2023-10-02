@@ -37,8 +37,8 @@ contract Harness__DssLitePsm is DssLitePsm {
 }
 
 abstract contract DssLitePsmBaseTest is DssTest {
-    function _ilk() internal virtual view returns(bytes32);
-    function _setUpGem() internal virtual returns(address);
+    function _ilk() internal view virtual returns (bytes32);
+    function _setUpGem() internal virtual returns (address);
 
     address immutable chainlog = vm.envAddress("CHANGELOG");
 
@@ -866,11 +866,11 @@ abstract contract DssLitePsmBaseTest is DssTest {
 //////////////////////////////////////////////////////////////////////////////*/
 
 contract DssLitePsmUsdcTest is DssLitePsmBaseTest {
-    function _ilk() internal pure override returns(bytes32) {
+    function _ilk() internal pure override returns (bytes32) {
         return "LITE_PSM_USDC_A";
     }
 
-    function _setUpGem() internal override returns(address) {
+    function _setUpGem() internal override returns (address) {
         address _gem = dss.chainlog.getAddress("USDC");
         // Mints 100_000_000 gem into the test contract.
         GodMode.setBalance(_gem, address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
@@ -892,18 +892,17 @@ contract DssLitePsmUsdcTest is DssLitePsmBaseTest {
 //////////////////////////////////////////////////////////////////////////////*/
 
 contract DssLitePsmUsdpTest is DssLitePsmBaseTest {
-    function _ilk() internal pure override returns(bytes32) {
+    function _ilk() internal pure override returns (bytes32) {
         return "LITE_PSM_PAXUSD_A";
     }
 
-    function _setUpGem() internal override returns(address) {
+    function _setUpGem() internal override returns (address) {
         address _gem = dss.chainlog.getAddress("PAXUSD");
         // Mints 100_000_000 gem into the test contract.
         GodMode.setBalance(_gem, address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
 
         return _gem;
     }
-
 
     function testBuyGem_Revert_WhenKegHasNoGem() public {
         assertEq(gem.balanceOf(address(keg)), 0, "buyGem: initial keg gem balance not zero");
@@ -935,11 +934,11 @@ interface ERC20Store {
 }
 
 contract DssLitePsmGusdTest is DssLitePsmBaseTest {
-    function _ilk() internal pure override returns(bytes32) {
+    function _ilk() internal pure override returns (bytes32) {
         return "LITE_PSM_GUSD_A";
     }
 
-    function _setUpGem() internal override returns(address) {
+    function _setUpGem() internal override returns (address) {
         address _gem = dss.chainlog.getAddress("GUSD");
         // Add GUSD blance
         address impl = ERC20Proxy(address(_gem)).erc20Impl();
@@ -954,7 +953,6 @@ contract DssLitePsmGusdTest is DssLitePsmBaseTest {
 
         return _gem;
     }
-
 
     function testBuyGem_Revert_WhenKegHasNoGem() public {
         assertEq(gem.balanceOf(address(keg)), 0, "buyGem: initial keg gem balance not zero");
