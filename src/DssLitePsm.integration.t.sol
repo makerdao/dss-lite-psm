@@ -959,7 +959,7 @@ contract DssLitePsmGusdTest is DssLitePsmBaseTest {
     function testBuyGem_Revert_WhenKegHasNoGem() public {
         assertEq(gem.balanceOf(address(keg)), 0, "buyGem: initial keg gem balance not zero");
 
-        // No error from the GUS implementation on Mainnet
+        // No error msg from the GUSD implementation on Mainnet
         vm.expectRevert();
         litePsm.buyGem(address(this), 1);
     }
