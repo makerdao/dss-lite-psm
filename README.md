@@ -122,7 +122,7 @@ is locked into this contract until users deposit USDC, backing the amount that i
 
 However, during Emergency Shutdown, if there is any outstanding Dai liquidity in this contract, it will be taken in
 consideration when collateral backing Dai is distributed pro-rata to Dai holders. Considering that PSMs correspond to a
-non-negligible amount of collateral, this should be take into consideration if Emergency Shutdown is ever considered.
+non-negligible amount of collateral, this should be taken into account if Emergency Shutdown is ever considered.
 
 Worst case scenario happens when the utilization ratio is at 50%, meaning the amount of `gem` deposited into the PSM is
 50% of `line` (debt ceiling). In this case, there will be `line / 2` unbacked Dai in the PSM. If the amount of `gem` is
