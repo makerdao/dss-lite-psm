@@ -141,4 +141,4 @@ TODO.
 [psm]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
 [psm-v2]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
 [keg]: ./src/DssKeg.sol
-[autoline]: https://etherscan.io/address/0xc7bdd1f2b16447dcf3de045c4a039a60ec2f0ba3
+[auto-line]: https://etherscan.io/address/0xc7bdd1f2b16447dcf3de045c4a039a60ec2f0ba3
