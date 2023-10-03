@@ -129,9 +129,10 @@ Worst case scenario happens when the utilization ratio is at 50%, meaning the am
 larger than that, the amount of Dai is cannot grow any further because it would surpass `line`. If it is less than that,
 the amount of Dai cannot grow permanently beyond the amount of `gem`.
 
-The recommendation is to always enable [`AutoLine`][auto-line] for `LitePsm`, which would allow adjusting the debt
-ceiling to keep the average utilization closer to 100%. This is not a silver bullet, as timing could be an issue and we
-could still have unbacked Dai in `LitePsm` after emergency shutdown.
+The use of [`AutoLine`][auto-line] for `LitePsm` cannot help alleviate this specific issue. When the utilization is at
+50% or above, it means that the existing debt is close to the debt ceiling, which prevents `AutoLine` from acting. If
+the utilization is below 50%, the debt will be lower, allowing `AutoLine` to adjust down, but that would bring the
+utilization closer to 50% once again.
 
 ## Contributing
 
