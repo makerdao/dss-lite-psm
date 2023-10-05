@@ -793,6 +793,66 @@ abstract contract DssLitePsmBaseTest is DssTest {
     }
 
     /*//////////////////////////////////
+                Corner Cases
+    //////////////////////////////////*/
+
+    /**
+     * Failing scenario 1:
+     * Extraneous `gem` transfers directly to `keg` break the internal accounting, making it
+     * impossible to unwind the position through `trim`.  In this case, `trim` will try to wipe more debt than it
+     * actually exists through `Vat.frob`.
+     */
+    function testReproduce_ExtraneousGemBalanceInKeg_BreaksBookkeeping() public {
+        uint256 igemAmt = _wadToAmt(500_000 * WAD);
+        litePsm.sellGem(address(0x1337), igemAmt);
+
+        // Make a direct transfer to the `keg` address.
+        // This is not intended behavior, but users could do it by mistake.
+        gem.transfer(address(keg), _wadToAmt(100_000 * WAD));
+
+        // Skip the fill...
+        // litePsm.fill();
+
+        // This should fail, as there is only debt accounting for the 500k
+        uint256 gemAmt = _wadToAmt(600_000 * WAD);
+        vm.expectRevert();
+        litePsm.buyGem(address(0x1337), gemAmt);
+
+        assertEq(litePsm.gush(), 0);
+
+        // Will fail because it will try to wipe more debt than it actually has.
+        vm.expectRevert();
+        litePsm.trim();
+    }
+
+    /**
+     * Failing scenario 2:
+     * Extraneous Dai transfers to `LitePsm`.
+     */
+    function testReproduce_ExtraneousDaiBalanceInPsm_BreaksBookkeeping() public {
+        uint256 igemAmt = _wadToAmt(500_000 * WAD);
+        litePsm.sellGem(address(0x1337), igemAmt);
+
+        // Make a direct transfer to the `LitePsm` address.
+        // This is not intended behavior, but users could do it by mistake.
+        dss.dai.transfer(address(litePsm), 100_000 * WAD);
+
+        // This should trigger a fill, but it won't since there's enough balance
+        uint256 gemAmt = _wadToAmt(600_000 * WAD);
+        litePsm.sellGem(address(0x1337), gemAmt);
+
+        // This should actually be 2 * (500k + 600k) = 2.2M
+        assertEq(_totalDebt(ilk), 2_200_000 * RAD);
+
+        // Should fail because there will be no liquidity requirement.
+        vm.expectRevert("LitePsm/fill-unavailable");
+        litePsm.fill();
+
+        // This should actually be 2 * (500k + 600k) = 2.2M
+        assertEq(_totalDebt(ilk), 2_200_000 * RAD);
+    }
+
+    /*//////////////////////////////////
                   Helpers
     //////////////////////////////////*/
 
