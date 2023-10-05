@@ -79,6 +79,17 @@ contract DssLitePsm {
     mapping(address => uint256) public wards;
     /// @notice Addresses with permission to swap with no fees. `bud[usr]`
     mapping(address => uint256) public bud;
+
+    // TODO: optimize storage layout:
+    //
+    // - `tin` and `tout` are bounded to `10**18`, meaning they can fit safely into `uint64`.
+    // - `cut` could be turned into `uint128` so it uses the same slot as `tin` and `tout`.
+    //   - The total accumulated fees would have to be more than `10**38` before it overflows.
+    //   - That is 100 quintillion (10**20) Dai with 18 decimals precision.
+    //
+    // - `accDai` and `accGem` could be turned into `uint128`
+    //   - Same rationale applies: 100 quintillion Dai is more than enough.
+
     /// @notice Maker Protocol balance sheet.
     address public vow;
     /// @notice Fee for selling gems.
