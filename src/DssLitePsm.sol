@@ -16,14 +16,13 @@
 pragma solidity ^0.8.16;
 
 interface VatLike {
+    function frob(bytes32, address, address, address, int256, int256) external;
+    function hope(address) external;
+    function slip(bytes32, address, int256) external;
+    function ilks(bytes32) external view returns (uint256, uint256, uint256, uint256, uint256);
     function debt() external view returns (uint256);
     function Line() external view returns (uint256);
-    function ilks(bytes32) external view returns (uint256, uint256, uint256, uint256, uint256);
     function urns(bytes32, address) external view returns (uint256, uint256);
-    function live() external view returns (uint256);
-    function hope(address) external;
-    function frob(bytes32, address, address, address, int256, int256) external;
-    function slip(bytes32, address, int256) external;
 }
 
 interface GemLike {
@@ -84,8 +83,6 @@ contract DssLitePsm {
     /// @notice Buffer for pre-minted DAI.
     /// @dev `wad` precision.
     uint256 public buf;
-    /// @notice Exit ratio gem/ink after Global Shutdown happens.
-    uint256 public fix;
 
     /// @dev `wad` precision.
     uint256 internal constant WAD = 10 ** 18;
@@ -155,13 +152,6 @@ contract DssLitePsm {
      * @param fee The fee paid by the user.
      */
     event BuyGem(address indexed owner, uint256 value, uint256 fee);
-    /**
-     * @notice A user has gotten `gem` tokens after Emergency Shutdown
-     * @param usr The user address.
-     * @param wad The amount of `ilk` `gem` being redeemed.
-     * @param gemAmt The amount of real `gem` received.
-     */
-    event Exit(address indexed usr, uint256 wad, uint256 gemAmt);
 
     modifier auth() {
         require(wards[msg.sender] == 1, "DssLitePsm/not-authorized");
