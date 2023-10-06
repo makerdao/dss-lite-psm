@@ -79,17 +79,17 @@ contract DssLitePsm {
     address public immutable keg;
 
     /// @notice Addresses with admin access on this contract. `wards[usr]`
-    mapping(address => uint256) public wards; // slot 0
+    mapping(address => uint256) public wards;
     /// @notice Addresses with permission to swap with no fees. `bud[usr]`
-    mapping(address => uint256) public bud; // slot 1
+    mapping(address => uint256) public bud;
     /// @notice Maker Protocol balance sheet.
-    address public vow; // slot 2
+    address public vow;
     /// @notice Fee for selling gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
-    uint64 public tin; // slot 3
+    uint256 public tin;
     /// @notice Fee for buying gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
-    uint64 public tout; // slot 3
+    uint256 public tout;
 
     /**
      * @notice `usr` was granted admin access.
@@ -279,9 +279,9 @@ contract DssLitePsm {
         require(data <= WAD, "LitePsm/out-of-range");
 
         if (what == "tin") {
-            tin = uint64(data);
+            tin = data;
         } else if (what == "tout") {
-            tout = uint64(data);
+            tout = data;
         } else {
             revert("LitePsm/file-unrecognized-param");
         }
