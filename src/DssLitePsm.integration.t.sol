@@ -28,6 +28,12 @@ interface GemLike {
     function decimals() external view returns (uint8);
 }
 
+interface AutoLineLike {
+    function setIlk(bytes32 ilk, uint256 line, uint256 gap, uint256 ttl) external;
+    function exec(bytes32 _ilk) external returns (uint256);
+    function ilks(bytes32 _ilk) external view returns (uint256 line, uint256 gap, uint256 ttl, uint256 last, uint256 lastInc);
+}
+
 contract Harness__DssLitePsm is DssLitePsm {
     constructor(bytes32 ilk_, address gem_, address daiJoin_, address keg_) DssLitePsm(ilk_, gem_, daiJoin_, keg_) {}
 
@@ -47,11 +53,15 @@ abstract contract DssLitePsmBaseTest is DssTest {
     GemLike gem;
     DssKeg keg;
     Harness__DssLitePsm litePsm;
+    AutoLineLike autoLine;
 
     function setUp() public virtual {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(chainlog);
         MCD.giveAdminAccess(dss);
+
+        autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
+        GodMode.setWard(address(autoLine), address(this), 1);
 
         // From concrete test implementations
         ilk = _ilk();
@@ -90,6 +100,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.dai), "Dai");
         vm.label(address(gem), "Gem");
+        vm.label(address(autoLine), "AutoLine");
     }
 
     /*//////////////////////////////////
@@ -499,81 +510,251 @@ abstract contract DssLitePsmBaseTest is DssTest {
     }
 
     function testTrim_ShouldUnwindRegardingDebtCeilingAndLiquidity() public {
-        uint256 igemAmt = _wadToAmt(500_000 * WAD);
-        uint256 idaiOutWad = litePsm.sellGem(address(0x1337), igemAmt);
-        uint256 idebtWad = _totalDebt(ilk) / RAY;
-        assertEq(idebtWad, 2 * idaiOutWad, "trim: invalid initial debt");
+        litePsm.sellGem(address(0x1337), _wadToAmt(500_000 * WAD));
+        assertEq(_totalDebt(ilk), 1_000_000 * RAD, "trim: invalid initial debt");
 
         // Buy some gem to reduce gem liquidity.
-        uint256 gemAmt = _wadToAmt(200_000 * WAD);
-        uint256 daiInWad = litePsm.buyGem(address(0x1337), gemAmt);
+        litePsm.buyGem(address(0x1337), _wadToAmt(200_000 * WAD));
+        // The amount of Dai should have increased.
+        assertEq(litePsm.accDai(), 700_000 * WAD, "trim: invalid PSM Dai balance after 1st buyGem");
+        // The amount of gem should have decreaded.
+        assertEq(litePsm.accGem(), _wadToAmt(300_000 * WAD), "trim: invalid PSM gem balance after 1st buyGem");
+        // Debt should not have changed.
+        assertEq(_totalDebt(ilk), 1_000_000 * RAD, "trim: unexpected debt change after 1st buyGem");
 
-        // The amount of Dai in the PSM should have increased.
-        uint256 paccDai = litePsm.accDai();
-        assertEq(paccDai, idaiOutWad + daiInWad, "trim: invalid initial PSM Dai balance");
-
-        uint256 pdebtWad = _totalDebt(ilk) / RAY;
-        assertEq(pdebtWad, idebtWad, "trim: unexpected debt change after 1st buyGem");
-
-        // There is 100k Dai remaining in Dai liquidity.
-        // We need to set the debt ceiling lower than that.
-        uint256 maxDebtCeiling = 75_000 * RAD;
-        _setIlkLine(ilk, maxDebtCeiling, true);
+        // There is 700k Dai remaining in Dai liquidity.
+        // We need to set the debt ceiling slightly lower than that.
+        _setIlkLine(ilk, 600_000 * RAD, true);
 
         uint256 trimmedWad = litePsm.trim();
+        // The amount of Dai in the PSM should be limited by the accumulated gem.
+        assertEq(trimmedWad, 400_000 * WAD, "trim: invalid trimmedWad in 1st trim");
+        assertEq(litePsm.accDai(), _amtToWad(litePsm.accGem()), "trim: invalid PSM Dai balance after 1st trim");
+        assertEq(_totalDebt(ilk), 600_000 * RAD, "trim: invalid debt after 1st trim");
 
-        // The amount of Dai in the PSM should not be larger than the debt ceiling.
-        uint256 accDai = litePsm.accDai();
-        assertEq(accDai, maxDebtCeiling / RAY, "trim: invalid PSM Dai balance after 1st trim");
-
-        uint256 debtWad = _totalDebt(ilk) / RAY;
-        assertEq(debtWad, pdebtWad - trimmedWad, "trim: invalid debt after 1st trim");
-
-        ////////////////////////////////////////////////////////////////////////////////
-
-        // Trim is still not possible
-        vm.expectRevert("LitePsm/trim-unavailable");
+        vm.expectRevert();
         litePsm.trim();
+        vm.expectRevert();
+        litePsm.fill();
 
-        ////////////////////////////////////////////////////////////////////////////////
-
-        // Buy some gem to reduce gem liquidity again.
-        // This will increase the amount of Dai available, requiring another trim.
-        gemAmt = _wadToAmt(200_000 * WAD);
-        daiInWad = litePsm.buyGem(address(0x1337), gemAmt);
-        pdebtWad = debtWad;
+        // There is 300k Dai remaining in Dai liquidity.
+        // We need to set the debt ceiling lower than that.
+        _setIlkLine(ilk, 200_000 * RAD, true);
 
         trimmedWad = litePsm.trim();
+        // Will try to get as close to debt ceiling as possible
+        assertEq(trimmedWad, 300_000 * WAD, "trim: invalid trimmedWad in 2nd trim");
+        assertEq(litePsm.accDai(), 0, "trim: invalid PSM Dai balance after 2nd trim");
+        assertEq(litePsm.accGem(), _wadToAmt(300_000 * WAD), "trim: invalid PSM Dai balance after 2nd trim");
+        assertEq(_totalDebt(ilk), 300_000 * RAD, "trim: invalid debt after 2nd trim");
 
-        // The amount of Dai in the PSM should not be larger than the debt ceiling once again.
-        accDai = litePsm.accDai();
-        assertEq(accDai, maxDebtCeiling / RAY, "trim: invalid PSM Dai balance after 2nd trim");
-
-        debtWad = _totalDebt(ilk) / RAY;
-        assertEq(debtWad, pdebtWad - trimmedWad, "trim: invalid debt after 2nd trim");
-
-        ////////////////////////////////////////////////////////////////////////////////
-
-        // Buy the remaining gem to reduce gem liquidity to zero
-        // This will increase the amount of Dai available, requiring yet another trim.
-        gemAmt = _wadToAmt(100_000 * WAD);
-        daiInWad = litePsm.buyGem(address(0x1337), gemAmt);
-        pdebtWad = debtWad;
-
-        trimmedWad = litePsm.trim();
-
-        // The amount of Dai in the PSM should now be zero
-        accDai = litePsm.accDai();
-        assertEq(accDai, 0, "trim: invalid PSM Dai balance after 3rd trim");
-
-        debtWad = _totalDebt(ilk) / RAY;
-        assertEq(debtWad, 0, "trim: invalid debt after 3rd trim");
-
-        ////////////////////////////////////////////////////////////////////////////////
-
-        // Trim not possible anymore
-        vm.expectRevert("LitePsm/trim-unavailable");
+        vm.expectRevert();
         litePsm.trim();
+        vm.expectRevert();
+        litePsm.fill();
+
+        // Buy some gem to reduce gem liquidity.
+        litePsm.buyGem(address(0x1337), _wadToAmt(100_000 * WAD));
+        // The amount of Dai should have increased.
+        assertEq(litePsm.accDai(), 100_000 * WAD, "trim: invalid PSM Dai balance after 2nd buyGem");
+        // The amount of gem should have decreaded.
+        assertEq(litePsm.accGem(), _wadToAmt(200_000 * WAD), "trim: invalid PSM gem balance after 2nd buyGem");
+        // Debt should not have changed.
+        assertEq(_totalDebt(ilk), 300_000 * RAD, "trim: unexpected debt change after 2nd buyGem");
+
+        // Now we can proceed with unwinding...
+        trimmedWad = litePsm.trim();
+        // Will try to get as close to debt ceiling as possible
+        assertEq(trimmedWad, 100_000 * WAD, "trim: invalid trimmedWad in 3rd trim");
+        assertEq(litePsm.accDai(), 0, "trim: invalid PSM Dai balance after 3rd trim");
+        assertEq(litePsm.accGem(), _wadToAmt(200_000 * WAD), "trim: invalid PSM Dai balance after 3rd trim");
+        assertEq(_totalDebt(ilk), 200_000 * RAD, "trim: invalid debt after 3rd trim");
+
+        vm.expectRevert();
+        litePsm.trim();
+        vm.expectRevert();
+        litePsm.fill();
+
+        // Effectively disabling the ilk
+        _setIlkLine(ilk, 0, true);
+
+        vm.expectRevert("LitePsm/fill-line-exceeded");
+        litePsm.sellGem(address(0x1337), 1);
+
+        // Buy the remaining gem to zero gem liquidity
+        litePsm.buyGem(address(0x1337), _wadToAmt(200_000 * WAD));
+        // The amount of Dai should have increased.
+        assertEq(litePsm.accDai(), 200_000 * WAD, "trim: invalid PSM Dai balance after 3rd buyGem");
+        // The amount of gem should have decreaded.
+        assertEq(litePsm.accGem(), 0, "trim: invalid PSM gem balance after 3rd buyGem");
+        // Debt should not have changed.
+        assertEq(_totalDebt(ilk), 200_000 * RAD, "trim: unexpected debt change after 3rd buyGem");
+
+        // Proceed with unwinding one last time
+        trimmedWad = litePsm.trim();
+        assertEq(trimmedWad, 200_000 * WAD, "trim: invalid trimmedWad in 4th trim");
+        assertEq(litePsm.accDai(), 0, "trim: invalid PSM Dai balance after 4th trim");
+        assertEq(litePsm.accGem(), 0, "trim: invalid PSM Dai balance after 4th trim");
+        assertEq(_totalDebt(ilk), 0, "trim: invalid debt after 4th trim");
+    }
+
+    function testAutoLine() public {
+        uint256 ttl = 8 hours;
+        uint256 gap = 10_000_000 * RAD;
+        uint256 maxLine = 200_000_000 * RAD;
+
+        autoLine.setIlk(ilk, maxLine, gap, ttl);
+        _skipTimeAndBlocks(ttl + 1);
+        autoLine.exec(ilk);
+
+        assertEq(_line(ilk), 10_000_000 * RAD);
+        // Has no immediate liquidity need
+        assertEq(litePsm.rush(), 0);
+
+        // `fill` up to the debt ceiling, but it wouldn't be enough
+        uint256 gemAmt = _wadToAmt(15_000_000 * WAD); // Cannot inline because of `expectRevert`
+        vm.expectRevert("Dai/insufficient-balance");
+        litePsm.sellGem(address(0x1337), gemAmt);
+
+        // `fill` up to the debt ceiling possible
+        litePsm.sellGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
+        assertEq(litePsm.accGem(), _wadToAmt(10_000_000 * WAD), "autoline: invalid accGem after 1st sellGem");
+        assertEq(litePsm.accDai(), 0, "autoline: invalid accDai after 1st sellGem");
+        // But since we're limited by the acting debt ceiling, liquidity available after sellGem will still be zero.
+        assertEq(litePsm.cash(), 0, "autoline: invalid cash after 1st sellGem");
+        // Has no immediate liquidity need, because it's constrained by the acting debt ceiling
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 1st sellGem");
+        // Debt ceiling is maxed out
+        assertEq(_totalDebt(ilk), 10_000_000 * RAD, "autoline: invalid debt after 1st sellGem");
+
+        // Wait until next round is available and bump debt ceiling...
+        _skipTimeAndBlocks(ttl + 1);
+
+        uint256 lineNew = autoLine.exec(ilk);
+        assertEq(lineNew, 20_000_000 * RAD, "autoline: invalid 2nd exec");
+
+        assertEq(_line(ilk), 20_000_000 * RAD, "autoline: invalid line after 2nd exec");
+        // Liquidity is still not available.
+        assertEq(litePsm.cash(), 0, "autoline: invalid cash after 2nd sellGem");
+        // Now there is room available in the debt ceiling, so we want liquidity
+        assertEq(litePsm.rush(), 10_000_000 * WAD, "autoline: invalid rush after 2nd sellGem");
+
+        uint256 filled = litePsm.fill();
+        assertEq(filled, 10_000_000 * WAD, "autoline: invalid filled amount in 1st fill");
+        assertEq(litePsm.accGem(), _wadToAmt(10_000_000 * WAD), "autoline: invalid accGem after 1st fill");
+        assertEq(litePsm.accDai(), 10_000_000 * WAD, "autoline: invalid accDai after 1st fill");
+        // Debt ceiling is maxed out
+        assertEq(_totalDebt(ilk), 20_000_000 * RAD, "autoline: invalid debt after 1st fill");
+        // Liquidity is now available
+        assertEq(litePsm.cash(), 10_000_000 * WAD, "autoline: invalid cash after 1st fill");
+        // Now there is no need for immediate liquidity.
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 2nd sellGem");
+
+        // Let's remove gem liquidity
+        litePsm.buyGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
+        // We emptied the PSM gems...
+        assertEq(litePsm.accGem(), 0, "autoline: invalid accGem after 1st buyGem");
+        assertEq(litePsm.accDai(), 20_000_000 * WAD, "autoline: invalid accDai after 1st buyGem");
+        // Debt ceiling is maxed out
+        assertEq(_totalDebt(ilk), 20_000_000 * RAD, "autoline: invalid debt after 1st buyGem");
+        // Liquidity available is huge
+        assertEq(litePsm.cash(), 20_000_000 * WAD, "autoline: invalid cash after 1st buyGem");
+        // There is no need to add liquidity...
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 2nd sellGem");
+        // But there is need to remoove it..
+        assertEq(litePsm.gush(), 20_000_000 * WAD, "autoline: invalid gush after 2nd sellGem");
+
+        // Now let's say autoline kicks in before trim...
+        _skipTimeAndBlocks(ttl + 1);
+
+        // Since debt ceiling is still maxed out, the line will increase...
+        lineNew = autoLine.exec(ilk);
+        assertEq(lineNew, 30_000_000 * RAD, "autoline: invalid 3rd exec");
+        assertEq(litePsm.accGem(), 0, "autoline: invalid accGem after 3rd exec");
+        assertEq(litePsm.accDai(), 20_000_000 * WAD, "autoline: invalid accDai after 3rd exec");
+        // Debt wouldn't be changed though...
+        assertEq(_totalDebt(ilk), 20_000_000 * RAD, "autoline: invalid debt after 3rd exec");
+        // However the exceeding liquidity willl remain the same...
+        assertEq(litePsm.gush(), 20_000_000 * WAD, "autoline: invalid gush after 3rd exec");
+        // The need for liquidity also remains 0
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 3rd exec");
+
+        uint256 snapshotAfter3rdExec = vm.snapshot();
+
+        // If nothing happens, but time for new autoline adjustment comes...
+        _skipTimeAndBlocks(ttl + 1);
+
+        // Everything must remain the same
+        lineNew = autoLine.exec(ilk);
+        assertEq(lineNew, 30_000_000 * RAD, "autoline: invalid 4th exec");
+        assertEq(litePsm.gush(), 20_000_000 * WAD, "autoline: invalid gush after 4th exec");
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 4th exec");
+
+        // But if we trim...
+        uint256 trimmed = litePsm.trim();
+        assertEq(trimmed, 20_000_000 * WAD, "autoline: invalid trimmed amount after 1st trim");
+        // Excess liquidity will now be zero
+        assertEq(litePsm.gush(), 0, "autoline: invalid gush after 1st trim");
+        // Need for liquidity remains zero
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 1st trim");
+        // Debt is zero
+        assertEq(_totalDebt(ilk), 0 * RAD, "autoline: invalid debt after 1st trim");
+
+        _skipTimeAndBlocks(25); // enough for 2 blocks only
+        // Notice that we don't need to wait for `ttl` to adjust autoline down:
+        lineNew = autoLine.exec(ilk);
+        assertEq(lineNew, 10_000_000 * RAD, "autoline: invalid 5th exec (down)");
+
+        vm.revertTo(snapshotAfter3rdExec);
+
+        // If we sell some gem to increase gem liquidity...
+        // Debt is still 20M, so we have 10M room in the debt ceiling.
+        // This means we can swap up to 30M, since it will generate 10M.
+        // We will sell less than that
+        litePsm.sellGem(address(0x1337), _wadToAmt(5_000_000 * WAD));
+        // Debt ceilng will not be changed
+        assertEq(_totalDebt(ilk), 20_000_000 * RAD, "autoline: invalid debt after 2nd sellGem");
+        // Line will not be modified
+        assertEq(_line(ilk), 30_000_000 * RAD, "autoline: invalid line after 2nd sellGem");
+        // We now have outstanding accumulated gem.
+        assertEq(litePsm.accGem(), _wadToAmt(5_000_000 * WAD), "autoline: invalid accGem after 2nd sellGem");
+        // All accumulated Dai has been swapp2d
+        assertEq(litePsm.accDai(), 15_000_000 * WAD, "autoline: invalid accDai after 2nd sellGem");
+        // Need for liquidity becomes zero
+        assertEq(litePsm.rush(), 0, "autoline: invalid rush after 2nd sellGem");
+        // Excess liquidity becomes zero
+        assertEq(litePsm.gush(), 10_000_000 * WAD, "autoline: invalid gush after 2nd sellGem");
+
+        _skipTimeAndBlocks(25); // enough for 2 blocks only
+        // Notice that we don't need to wait for `ttl` to adjust autoline down:
+        lineNew = autoLine.exec(ilk);
+        // Line will remain the same, as debt was not reduced
+        assertEq(lineNew, 30_000_000 * RAD, "autoline: invalid 6th exec (down)");
+
+        trimmed = litePsm.trim();
+        assertEq(trimmed, 10_000_000 * WAD, "autoline: invalid trimmed amount after 2nd trim");
+        // Debt ceilng will be reduced to zero...
+        assertEq(_totalDebt(ilk), 10_000_000 * RAD, "autoline: invalid debt after 2nd trim");
+        // Line would still be the previous value...
+        assertEq(_line(ilk), 30_000_000 * RAD, "autoline: invalid line after 2nd trim");
+
+        lineNew = lineNew = autoLine.exec(ilk);
+        assertEq(lineNew, 20_000_000 * RAD, "autoline: invalid 7th exec (down)");
+
+        vm.revertTo(snapshotAfter3rdExec);
+
+        // But if we trim first...
+        trimmed = litePsm.trim();
+        assertEq(trimmed, 20_000_000 * WAD, "autoline: invalid trimmed amount after 3rd trim");
+        // Debt ceilng will be reduced to zero...
+        assertEq(_totalDebt(ilk), 0, "autoline: invalid debt after 3rd trim");
+        // Line would still be the previous value...
+        assertEq(_line(ilk), 30_000_000 * RAD, "autoline: invalid line after 3rd trim");
+
+        _skipTimeAndBlocks(25); // enough for 2 blocks only
+        // Notice that we don't need to wait for `ttl` to adjust autoline down:
+        lineNew = autoLine.exec(ilk);
+        assertEq(lineNew, 10_000_000 * RAD, "autoline: invalid 8th exec (down)");
     }
 
     /*//////////////////////////////////
@@ -823,6 +1004,13 @@ abstract contract DssLitePsmBaseTest is DssTest {
                   Helpers
     //////////////////////////////////*/
 
+    uint256 currentBlock = block.number;
+    function _skipTimeAndBlocks(uint256 dt) internal {
+        skip(dt);
+        currentBlock += dt * 100 / 125;
+        vm.roll(currentBlock);
+    }
+
     function _setupFees(uint256 tin_, uint256 tout_) internal returns (uint256 tin, uint256 tout) {
         tin = bound(tin_, 0.00001 ether, 1 * WAD); // Between 0.001% and 100%
         tout = bound(tout_, 0.00001 ether, 1 * WAD); // Between 0.001% and 100%
@@ -842,6 +1030,11 @@ abstract contract DssLitePsmBaseTest is DssTest {
     function _totalDebt(bytes32 ilk_) internal view returns (uint256) {
         (uint256 Art, uint256 rate,,,) = dss.vat.ilks(ilk_);
         return Art * rate;
+    }
+
+    function _line(bytes32 ilk_) internal view returns (uint256) {
+        (,,, uint256 line,) = dss.vat.ilks(ilk_);
+        return line;
     }
 
     function _changeIlkLine(bytes32 ilk_, uint256 dline, bool global) internal returns (uint256) {

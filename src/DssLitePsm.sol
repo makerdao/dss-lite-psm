@@ -322,9 +322,8 @@ contract DssLitePsm {
         uint256 fee = daiOutWad * tin / WAD;
 
         if (fee > 0) {
+            cut += uint128(fee);
             unchecked {
-                // Safe because the sum of fees can never be larger than Dai total supply.
-                cut += uint128(fee);
                 // Since `tin` is bounded to 100%, this can never underflow.
                 daiOutWad -= fee;
             }
@@ -386,11 +385,8 @@ contract DssLitePsm {
         uint256 fee = daiInWad * tout / WAD;
 
         if (fee > 0) {
-            // Safe because the sum of fees and the swapped amount can never be larger than Dai total supply.
-            unchecked {
-                cut += uint128(fee);
-                daiInWad += fee;
-            }
+            cut += uint128(fee);
+            daiInWad += fee;
         }
 
         require(dai.transferFrom(msg.sender, address(this), daiInWad), "LitePsm/dai-transfer-failed");
@@ -495,12 +491,14 @@ contract DssLitePsm {
      * @return wad The amount added to the surplus buffer.
      */
     function chug() external returns (uint256 wad) {
-        require(vow != address(0), "LitePsm/chug-missing-vow");
-        require(cut > 0, "LitePsm/chug-unavailable");
+        address _vow = vow;
+        uint256 _cut = cut;
+        require(_vow != address(0), "LitePsm/chug-missing-vow");
+        require(_cut > 0, "LitePsm/chug-unavailable");
 
-        daiJoin.join(vow, cut);
-        accDai -= cut;
-        wad = cut;
+        daiJoin.join(_vow, _cut);
+        accDai -= uint128(_cut);
+        wad = _cut;
         cut = 0;
 
         emit Chug(wad);
@@ -544,14 +542,22 @@ contract DssLitePsm {
      * @return wad The amount of Dai.
      */
     function gush() public view returns (uint256 wad) {
+        // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
+        // `rate` is assumed to be 1 (10 ** 27)
+        // `spot` is assumed to be 1 (10 ** 27)
+        (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
+        uint256 debt = Art * RAY;
         uint256 _cash = cash();
-        (,,, uint256 line,) = vat.ilks(ilk);
 
-        return _max(
-            // Excess Dai relative to gem liquidity.
-            _subCap(_cash, accGem * to18ConversionFactor),
-            // Excess Dai relative to the debt ceiling.
-            _subCap(_cash, (line / RAY))
+        return _min(
+            // Cannot burn more than the available liquidity
+            _cash,
+            _max(
+                // Excess Dai relative to gem liquidity.
+                _subCap(_cash, accGem * to18ConversionFactor),
+                // Excess debt relative to the debt ceiling.
+                _subCap(debt, line) / RAY
+            )
         );
     }
 }
