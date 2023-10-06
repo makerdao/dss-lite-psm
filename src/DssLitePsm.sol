@@ -215,7 +215,7 @@ contract DssLitePsm {
     ///@dev Returns the difference between `x` and `y` if `x >= y` or zero otherwise.
     function _subcap(uint256 x, uint256 y) internal pure returns (uint256 z) {
         unchecked {
-            z = x >= y ? x - y : 0;
+            z = x > y ? x - y : 0;
         }
     }
 
