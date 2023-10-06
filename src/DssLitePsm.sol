@@ -453,34 +453,4 @@ contract DssLitePsm {
         daiJoin.join(vow, wad);
         emit Chug(wad);
     }
-
-    /*//////////////////////////////////
-             Emergency Shutdown
-    //////////////////////////////////*/
-
-    /**
-     * @notice Executes accounting needed for gem redemption after Global Shutdown
-     */
-    function cage() external {
-        require(vat.live() == 0, "DssLitePsm/vat-still-live");
-        daiJoin.join(vow, dai.balanceOf(address(this)));
-        uint256 balance = gem.balanceOf(keg);
-        gem.transferFrom(keg, address(this), balance);
-
-        (uint256 ink,) = vat.urns(ilk, address(this));
-        fix = balance * WAD / ink;
-    }
-
-    /**
-     * @notice Withdraws `gem` after Emergency Shutdown.
-     * @param usr The destination of the gems.
-     * @param wad The amount of ilk gem to redeem. [`wad` precision].
-     */
-    function exit(address usr, uint256 wad) external {
-        vat.slip(ilk, msg.sender, -_int256(wad));
-        uint256 gemAmt = wad * fix / WAD;
-        gem.transfer(usr, gemAmt);
-
-        emit Exit(usr, wad, gemAmt);
-    }
 }

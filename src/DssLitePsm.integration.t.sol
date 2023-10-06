@@ -18,7 +18,6 @@ pragma solidity ^0.8.16;
 import "dss-test/DssTest.sol";
 import {DssKeg} from "src/DssKeg.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
-import {DssLitePsmOracle} from "src/DssLitePsmOracle.sol";
 
 interface GemLike {
     function approve(address spender, uint256 value) external;
@@ -46,7 +45,6 @@ contract DssLitePsmTest is DssTest {
     GemLike usdc;
     DssKeg keg;
     Harness__DssLitePsm litePsm;
-    DssLitePsmOracle oracle;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
@@ -64,9 +62,8 @@ contract DssLitePsmTest is DssTest {
 
         keg = new DssKeg(litePsmAddr, address(usdc));
         litePsm = new Harness__DssLitePsm(ilk, address(usdc), address(dss.daiJoin), kegAddr);
-        oracle = new DssLitePsmOracle(address(litePsm));
 
-        MCD.initIlk(dss, ilk, address(0), address(oracle));
+        MCD.initIlk(dss, ilk);
         uint256 dline = 100_000_000 * RAD;
         dss.vat.file("Line", dss.vat.Line() + dline);
         dss.vat.file(ilk, "line", dline);
@@ -611,77 +608,6 @@ contract DssLitePsmTest is DssTest {
         );
         usdcBalanceKeg = usdc.balanceOf(address(keg));
         assertEq(usdcBalanceKeg, pusdcBalanceKeg - gemAmt, "no fees: invalid keg USDC balance after buyGemNoFee");
-    }
-
-    /*//////////////////////////////////
-             Emergency Shutdown
-    //////////////////////////////////*/
-
-    function testExit() public {
-        litePsm.fill();
-        litePsm.sellGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
-        litePsm.fill();
-
-        assertEq(dss.dai.balanceOf(address(litePsm)), 10_000_000 * WAD);
-        assertEq(usdc.balanceOf(address(litePsm)), 0);
-        assertEq(usdc.balanceOf(address(keg)), _wadToAmt(10_000_000 * WAD));
-        assertEq(_ink(ilk, address(litePsm)), 20_000_000 * WAD);
-
-        vm.expectRevert("DssLitePsm/vat-still-live");
-        litePsm.cage();
-
-        dss.end.cage();
-
-        vm.expectRevert("DssLitePsmOracle/psm-not-caged-after-shutdown");
-        dss.end.cage(ilk);
-
-        uint256 prevVatDaiVow = dss.vat.dai(address(dss.vow));
-
-        litePsm.cage();
-
-        assertEq(dss.vat.dai(address(dss.vow)), prevVatDaiVow + 10_000_000 * RAD);
-        assertEq(dss.dai.balanceOf(address(litePsm)), 0);
-        assertEq(usdc.balanceOf(address(litePsm)), _wadToAmt(10_000_000 * WAD));
-        assertEq(usdc.balanceOf(address(keg)), 0);
-        assertEq(_ink(ilk, address(litePsm)), 20_000_000 * WAD);
-        assertEq(litePsm.fix(), WAD / (2 * 10**(18-6)));
-
-        dss.end.cage(ilk);
-        assertEq(dss.end.Art(ilk), 20_000_000 * WAD);
-
-        dss.end.skim(ilk, address(litePsm));
-
-        assertEq(_ink(ilk, address(litePsm)), 0);
-        assertEq(dss.vat.gem(ilk, address(dss.end)), 20_000_000 * WAD);
-
-        // Half cleaning the right way, half hacking to get surplus == 0
-        dss.vow.heal(_min(dss.vat.dai(address(dss.vow)), dss.vat.sin(address(dss.vow))));
-        stdstore.target(address(dss.vat)).sig("dai(address)").with_key(address(dss.vow)).depth(0).checked_write(uint256(0));
-
-        // Hacking to have exactly 5B total DAI supply
-        stdstore.target(address(dss.vat)).sig("debt()").depth(0).checked_write(uint256(5_000_000_000 * RAD));
-
-        vm.warp(block.timestamp + dss.end.wait());
-
-        dss.end.thaw();
-
-        dss.end.flow(ilk);
-        assertEq(dss.end.fix(ilk), 20_000_000 * RAY / 5_000_000_000);
-
-        // Hacking to give address(this)
-        stdstore.target(address(dss.vat)).sig("dai(address)").with_key(address(this)).depth(0).checked_write(uint256(1_000_000 * RAD));
-
-        dss.vat.hope(address(dss.end));
-        dss.end.pack(1_000_000 * WAD);
-        assertEq(dss.end.bag(address(this)), 1_000_000 * WAD);
-
-        dss.end.cash(ilk, 1_000_000 * WAD);
-
-        assertEq(dss.vat.gem(ilk, address(this)), 4_000 * WAD); // 1_000_000 * WAD * 20_000_000 / 5_000_000_000;
-
-        uint256 prevUsdcBalance = usdc.balanceOf(address(this));
-        litePsm.exit(address(this), 4_000 * WAD);
-        assertEq(usdc.balanceOf(address(this)), prevUsdcBalance + _wadToAmt(2_000 * WAD));
     }
 
     /*//////////////////////////////////
