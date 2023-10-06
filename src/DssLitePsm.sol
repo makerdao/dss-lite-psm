@@ -406,6 +406,7 @@ contract DssLitePsm {
         uint256 Line = vat.Line();
         uint256 debt = vat.debt();
 
+        // TODO: Do we really need `unchecked` here?
         unchecked {
             wad = _min(
                 _min(
@@ -441,6 +442,7 @@ contract DssLitePsm {
         uint256 debt = vat.debt();
 
         // TODO: Analyse if we want to unwind due to global debt ceiling being passed.
+        // TODO: Do we really need `unchecked` here?
         unchecked {
             wad = _min(
                 _max(
