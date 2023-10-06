@@ -690,8 +690,9 @@ contract DssLitePsmTest is DssTest {
 
     function _cut() internal view returns (uint256 amt) {
         (, uint256 art) = dss.vat.urns(ilk, address(litePsm));
-        amt =
-            dss.dai.balanceOf(address(litePsm)) + usdc.balanceOf(address(keg)) * litePsm.__to18ConversionFactor() - art;
+        uint256 daiBalance = dss.dai.balanceOf(address(litePsm));
+        uint256 gemBalanceWad = usdc.balanceOf(address(keg)) * litePsm.__to18ConversionFactor();
+        amt = daiBalance + gemBalanceWad - art;
     }
 
     event Fill(uint256 wad);
