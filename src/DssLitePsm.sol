@@ -156,17 +156,17 @@ contract DssLitePsm {
     /**
      * @notice A user sold `gem` for Dai>
      * @param owner The user address.
-     * @param amt The amount of `gem` sold.
+     * @param value The amount of `gem` sold.
      * @param fee The fee paid by the user.
      */
-    event SellGem(address indexed owner, uint256 amt, uint256 fee);
+    event SellGem(address indexed owner, uint256 value, uint256 fee);
     /**
      * @notice A user bought `gem` with Dai.
      * @param owner The user address.
-     * @param amt The amount of `gem` bought.
+     * @param value The amount of `gem` bought.
      * @param fee The fee paid by the user.
      */
-    event BuyGem(address indexed owner, uint256 amt, uint256 fee);
+    event BuyGem(address indexed owner, uint256 value, uint256 fee);
 
     modifier auth() {
         require(wards[msg.sender] == 1, "LitePsm/not-authorized");

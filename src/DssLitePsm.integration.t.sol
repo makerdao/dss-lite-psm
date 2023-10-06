@@ -1076,8 +1076,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
     event Fill(uint256 wad);
     event Trim(uint256 wad);
     event Chug(uint256 wad);
-    event SellGem(address indexed owner, uint256 amt, uint256 fee);
-    event BuyGem(address indexed owner, uint256 amt, uint256 fee);
+    event SellGem(address indexed owner, uint256 value, uint256 fee);
+    event BuyGem(address indexed owner, uint256 value, uint256 fee);
 }
 
 /*//////////////////////////////////////////////////////////////////////////////
