@@ -158,7 +158,7 @@ contract DssLitePsm {
         _;
     }
 
-    modifier onlyBud() {
+    modifier toll() {
         require(bud[msg.sender] == 1, "LitePsm/not-bud");
         _;
     }
@@ -337,7 +337,7 @@ contract DssLitePsm {
      * @param gemAmt The amount of gem to swap. [`gem` precision].
      * @return daiOutWad The amount of Dai swapped.
      */
-    function sellGemNoFee(address usr, uint256 gemAmt) external onlyBud returns (uint256 daiOutWad) {
+    function sellGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiOutWad) {
         daiOutWad = gemAmt * to18ConversionFactor;
 
         // Trigger a fill only if there is not enough Dai available to cover the gem sell.
@@ -382,7 +382,7 @@ contract DssLitePsm {
      * @param gemAmt The amount of gem to swap. [`gem` precision].
      * @return daiInWad The amount of Dai required for swapping.
      */
-    function buyGemNoFee(address usr, uint256 gemAmt) external onlyBud returns (uint256 daiInWad) {
+    function buyGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiInWad) {
         daiInWad = gemAmt * to18ConversionFactor;
 
         require(dai.transferFrom(msg.sender, address(this), daiInWad), "LitePsm/dai-transfer-failed");
