@@ -428,7 +428,7 @@ contract DssLitePsm {
 
     /**
      * @notice Burns any excess of Dai from this contract.
-     * @dev The total outstanding debt can still be larger than the debt celing after `trim`.
+     * @dev The total outstanding debt can still be larger than the debt ceiling after `trim`.
      * Additional `buyGem` calls will enable further `trim` calls.
      * @return wad The amount of Dai burned.
      */
