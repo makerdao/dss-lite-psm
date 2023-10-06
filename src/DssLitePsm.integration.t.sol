@@ -45,6 +45,7 @@ contract DssLitePsmTest is DssTest {
     GemLike usdc;
     DssKeg keg;
     Harness__DssLitePsm litePsm;
+    uint256 buf;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
@@ -80,15 +81,20 @@ contract DssLitePsmTest is DssTest {
         dss.dai.approve(address(litePsm), type(uint256).max);
 
         // keg to give unlimited USDC approval to the litePsm.
-        vm.prank(address(keg)); usdc.approve(address(litePsm), type(uint256).max);
+        vm.prank(address(keg));
+        usdc.approve(address(litePsm), type(uint256).max);
 
         // Setup the vow for litePsm
         litePsm.file("vow", address(dss.vow));
 
-        litePsm.file("buf", 10_000_000 * WAD);
+        buf = 10_000_000 * WAD;
+        litePsm.file("buf", buf);
 
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.dai), "Dai");
+        vm.label(address(dss.vow), "Vow");
+        vm.label(address(dss.dai), "Dai");
+        vm.label(address(dss.daiJoin), "DaiJoin");
         vm.label(address(usdc), "USDC");
     }
 
