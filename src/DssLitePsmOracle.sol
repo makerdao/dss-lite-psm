@@ -22,7 +22,6 @@ interface VatLike {
 
 interface PsmLike {
     function vat() external view returns (address);
-    function ilk() external view returns (bytes32);
     function fix() external view returns (uint256);
 }
 
@@ -31,37 +30,12 @@ contract DssLitePsmOracle {
     
     PsmLike public immutable psm;
     VatLike public immutable vat;
-    bytes32 public immutable ilk;
 
     uint256 internal constant WAD = 10 ** 18;
-
-    // --- Events ---
-    event Rely(address indexed usr);
-    event Deny(address indexed usr);
-    event File(bytes32 indexed what, address data);
 
     constructor(address psm_) {
         psm = PsmLike(psm_);
         vat = VatLike(psm.vat());
-        ilk = psm.ilk();
-
-        wards[msg.sender] = 1;
-        emit Rely(msg.sender);
-    }
-
-    modifier auth {
-        require(wards[msg.sender] == 1, "DssLitePsmOracle/not-authorized");
-        _;
-    }
-
-    function rely(address usr) external auth {
-        wards[usr] = 1;
-        emit Rely(usr);
-    }
-
-    function deny(address usr) external auth {
-        wards[usr] = 0;
-        emit Deny(usr);
     }
 
     function peek() public view returns (uint256 val, bool ok) {
@@ -72,6 +46,6 @@ contract DssLitePsmOracle {
     function read() external view returns (uint256 val) {
         bool ok;
         (val, ok) = peek();
-        require(ok, "DssLitePsmOracle/ilk-not-caged-in-shutdown"); // In order to stop end.cage(ilk) until the PSM is caged
+        require(ok, "DssLitePsmOracle/psm-not-caged-after-shutdown"); // In order to stop end.cage(ilk) until the PSM is caged
     }
 }

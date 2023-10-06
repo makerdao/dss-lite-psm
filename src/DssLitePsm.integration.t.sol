@@ -632,7 +632,7 @@ contract DssLitePsmTest is DssTest {
 
         dss.end.cage();
 
-        vm.expectRevert("DssLitePsmOracle/ilk-not-caged-in-shutdown");
+        vm.expectRevert("DssLitePsmOracle/psm-not-caged-after-shutdown");
         dss.end.cage(ilk);
 
         uint256 prevVatDaiVow = dss.vat.dai(address(dss.vow));
