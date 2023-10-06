@@ -13,40 +13,32 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
-pragma solidity 0.8.16;
-
-import {console2} from "forge-std/console2.sol";
+pragma solidity ^0.8.16;
 
 interface VatLike {
-    function hope(address usr) external;
-    function frob(bytes32 i, address u, address v, address w, int256 dink, int256 dart) external;
-    function slip(bytes32 ilk, address usr, int256 wad) external;
-    function ilks(bytes32)
-        external
-        view
-        returns (uint256 Art, uint256 rate, uint256 spot, uint256 line, uint256 dust);
-}
-
-interface DaiJoinLike {
-    function exit(address usr, uint256 wad) external;
-    function join(address usr, uint256 wad) external;
-    function dai() external view returns (address);
-    function vat() external view returns (address);
-}
-
-interface DaiLike {
-    function approve(address spender, uint256 value) external;
-    function transfer(address to, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-    function balanceOf(address owner) external view returns (uint256);
+    function debt() external view returns (uint256);
+    function Line() external view returns (uint256);
+    function ilks(bytes32) external view returns (uint256, uint256, uint256, uint256, uint256);
+    function urns(bytes32, address) external view returns (uint256, uint256);
+    function live() external view returns (uint256);
+    function hope(address) external;
+    function frob(bytes32, address, address, address, int256, int256) external;
+    function slip(bytes32, address, int256) external;
 }
 
 interface GemLike {
-    function approve(address spender, uint256 value) external;
-    function transfer(address to, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-    function balanceOf(address owner) external view returns (uint256);
+    function balanceOf(address) external view returns (uint256);
     function decimals() external view returns (uint8);
+    function approve(address, uint256) external;
+    function transfer(address, uint256) external;
+    function transferFrom(address, address, uint256) external;
+}
+
+interface DaiJoinLike {
+    function dai() external view returns (address);
+    function vat() external view returns (address);
+    function exit(address, uint256) external;
+    function join(address, uint256) external;
 }
 
 /**
@@ -68,7 +60,7 @@ contract DssLitePsm {
     /// @notice Dai adapter.
     DaiJoinLike public immutable daiJoin;
     /// @notice Dai token.
-    DaiLike public immutable dai;
+    GemLike public immutable dai;
     /// @notice Gem to exchange with Dai.
     GemLike public immutable gem;
     /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
@@ -89,9 +81,11 @@ contract DssLitePsm {
     /// @notice Fee for buying gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tout;
-    /// @notice Outstanding swapping fees accumulated into this contract.
+    /// @notice Buffer for pre-minted DAI.
     /// @dev `wad` precision.
-    uint256 public cut;
+    uint256 public buf;
+    /// @notice Exit ratio gem/ink after Global Shutdown happens.
+    uint256 public fix;
 
     /// @dev `wad` precision.
     uint256 internal constant WAD = 10 ** 18;
@@ -150,31 +144,32 @@ contract DssLitePsm {
     /**
      * @notice A user sold `gem` for Dai>
      * @param owner The user address.
-     * @param amt The amount of `gem` sold.
+     * @param value The amount of `gem` sold.
      * @param fee The fee paid by the user.
      */
-    event SellGem(address indexed owner, uint256 amt, uint256 fee);
+    event SellGem(address indexed owner, uint256 value, uint256 fee);
     /**
      * @notice A user bought `gem` with Dai.
      * @param owner The user address.
-     * @param amt The amount of `gem` bought.
+     * @param value The amount of `gem` bought.
      * @param fee The fee paid by the user.
      */
-    event BuyGem(address indexed owner, uint256 amt, uint256 fee);
+    event BuyGem(address indexed owner, uint256 value, uint256 fee);
     /**
      * @notice A user has gotten `gem` tokens after Emergency Shutdown
      * @param usr The user address.
-     * @param amt The amount of `gem` received.
+     * @param wad The amount of `ilk` `gem` being redeemed.
+     * @param gemAmt The amount of real `gem` received.
      */
-    event Exit(address indexed usr, uint256 amt);
+    event Exit(address indexed usr, uint256 wad, uint256 gemAmt);
 
     modifier auth() {
-        require(wards[msg.sender] == 1, "LitePsm/not-authorized");
+        require(wards[msg.sender] == 1, "DssLitePsm/not-authorized");
         _;
     }
 
-    modifier onlyBud() {
-        require(bud[msg.sender] == 1, "LitePsm/not-bud");
+    modifier toll() {
+        require(bud[msg.sender] == 1, "DssLitePsm/not-bud");
         _;
     }
 
@@ -189,7 +184,7 @@ contract DssLitePsm {
         gem = GemLike(gem_);
         daiJoin = DaiJoinLike(daiJoin_);
         vat = VatLike(daiJoin.vat());
-        dai = DaiLike(daiJoin.dai());
+        dai = GemLike(daiJoin.dai());
         keg = keg_;
 
         to18ConversionFactor = 10 ** (18 - gem.decimals());
@@ -220,14 +215,11 @@ contract DssLitePsm {
         return x > y ? x : y;
     }
 
-    ///@dev Capped subtraction: returns `x - y` if `x > y` or `0` otherwise.
-    function _subCap(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        if (x > y) {
-            unchecked {
-                return x - y;
-            }
+    ///@dev Returns the division between `x` and `y` (rounding up).
+    function _divup(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        unchecked {
+            z = x != 0 ? ((x - 1) / y) + 1 : 0;
         }
-        return 0;
     }
 
     /*//////////////////////////////////
@@ -279,7 +271,7 @@ contract DssLitePsm {
         if (what == "vow") {
             vow = data;
         } else {
-            revert("LitePsm/file-unrecognized-param");
+            revert("DssLitePsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -287,18 +279,20 @@ contract DssLitePsm {
 
     /**
      * @notice Updates a contract parameter.
-     * @param what The changed parameter name. ["tin", "tout"].
+     * @param what The changed parameter name. ["tin", "tout", "buf"].
      * @param data The new value of the parameter.
      */
     function file(bytes32 what, uint256 data) external auth {
-        require(data <= WAD, "LitePsm/out-of-range");
-
         if (what == "tin") {
+            require(data <= WAD, "DssLitePsm/out-of-range");
             tin = data;
         } else if (what == "tout") {
+            require(data <= WAD, "DssLitePsm/out-of-range");
             tout = data;
+        } else if (what == "buf") {
+            buf = data;
         } else {
-            revert("LitePsm/file-unrecognized-param");
+            revert("DssLitePsm/file-unrecognized-param");
         }
 
         emit File(what, data);
@@ -308,109 +302,70 @@ contract DssLitePsm {
                   Swapping
     //////////////////////////////////*/
 
+    function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 daiOutWad) {
+        daiOutWad = gemAmt * to18ConversionFactor;
+        uint256 fee;
+        if (tin_ > 0) {
+            fee = daiOutWad * tin_ / WAD;
+            unchecked { daiOutWad -= fee; } // Since `tin_` is bounded to WAD, this can never underflow.
+        }
+        gem.transferFrom(msg.sender, keg, gemAmt);
+        dai.transfer(usr, daiOutWad); // This can consume the whole balance including system fees not withdrawn
+        emit SellGem(usr, gemAmt, fee);
+    }
+
     /**
-     * @notice Swaps `gem` into Dai.
-     * @dev If there is not enough Dai liquidity in this contract, it will pull more liquidity up to the debt ceiling
-     *      automatically before proceeding with the swap. If there is not enough room in the debt ceiling to cover
-     *      `daiOutWad`, the transaction will fail.
-     * @param usr The destination of the swapped Dai.
-     * @param gemAmt The amount of gem to swap. [`gem` precision].
-     * @return daiOutWad The amount of Dai swapped.
+     * @notice Function that swaps `gem` into Dai.
+     * @param usr The destination of the bought Dai.
+     * @param gemAmt The amount of gem to sell. [`gem` precision].
+     * @return daiOutWad The amount of Dai bought.
      */
     function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
-        daiOutWad = gemAmt * to18ConversionFactor;
-        uint256 fee = daiOutWad * tin / WAD;
-
-        if (fee > 0) {
-            unchecked {
-                // Safe because the sum of fees can never be larger than Dai total supply.
-                cut += fee;
-                // Since `tin` is bounded to 100%, this can never underflow.
-                daiOutWad -= fee;
-            }
-        }
-
-        // Trigger a fill only if there is not enough Dai available to cover the gem sell.
-        if (cash() < daiOutWad) {
-            // Fill up to 2x the swapped amount + fee if there is room in the debt ceiling,
-            // so the pool is perfectly balanced aftewards.
-            _doFill(2 * daiOutWad + fee);
-        }
-
-        require(gem.transferFrom(msg.sender, keg, gemAmt), "LitePsm/gem-transfer-failed");
-        require(dai.transfer(usr, daiOutWad), "LitePsm/dai-transfer-failed");
-
-        emit SellGem(usr, gemAmt, fee);
-        return daiOutWad;
+        daiOutWad = _sellGem(usr, gemAmt, tin);
     }
 
     /**
-     * @notice Swaps `gem` into Dai without any fees.
+     * @notice Function that swaps `gem` into Dai without any fees.
      * @dev Only users whitelisted through `kiss()` can call this function.
-     * @dev If there is not enough Dai liquidity in this contract, it will pull more liquidity up to the debt ceiling
-     *      automatically before proceeding with the swap. If there is not enough room in the debt ceiling to cover
-     *      `daiOutWad`, the transaction will fail.
-     * @param usr The destination of the swapped Dai.
-     * @param gemAmt The amount of gem to swap. [`gem` precision].
-     * @return daiOutWad The amount of Dai swapped.
+     * @param usr The destination of the bought Dai.
+     * @param gemAmt The amount of gem to sell. [`gem` precision].
+     * @return daiOutWad The amount of Dai bought.
      */
-    function sellGemNoFee(address usr, uint256 gemAmt) external onlyBud returns (uint256 daiOutWad) {
-        daiOutWad = gemAmt * to18ConversionFactor;
+    function sellGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiOutWad) {
+        daiOutWad = _sellGem(usr, gemAmt, 0);
+    }
 
-        // Trigger a fill only if there is not enough Dai available to cover the gem sell.
-        if (cash() < daiOutWad) {
-            // Fill up to 2x the swapped amount if there is room in the debt ceiling,
-            // so the pool is perfectly balanced aftewards.
-            _doFill(2 * daiOutWad);
+    function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 daiInWad) {
+        daiInWad = gemAmt * to18ConversionFactor;
+        uint256 fee;
+        if (tout_ > 0) {
+            fee = daiInWad * tout_ / WAD;
+            daiInWad += fee;
         }
-
-        require(gem.transferFrom(msg.sender, keg, gemAmt), "LitePsm/gem-transfer-failed");
-        require(dai.transfer(usr, daiOutWad), "LitePsm/dai-transfer-failed");
-
-        emit SellGem(usr, gemAmt, 0);
-        return daiOutWad;
+        dai.transferFrom(msg.sender, address(this), daiInWad);
+        gem.transferFrom(keg, usr, gemAmt);
+        emit BuyGem(usr, gemAmt, fee);
     }
 
     /**
-     * @notice Swaps Dai into `gem`.
-     * @param usr The destination of the swapped gems.
-     * @param gemAmt The amount of gem to swap. [`gem` precision].
-     * @return daiInWad The amount of Dai required for swapping.
+     * @notice Function that swaps Dai into `gem`.
+     * @param usr The destination of the bought gems.
+     * @param gemAmt The amount of gem to buy. [`gem` precision].
+     * @return daiInWad The amount of Dai required to sell.
      */
     function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
-        daiInWad = gemAmt * to18ConversionFactor;
-        uint256 fee = daiInWad * tout / WAD;
-
-        if (fee > 0) {
-            // Safe because the sum of fees and the swapped amount can never be larger than Dai total supply.
-            unchecked {
-                cut += fee;
-                daiInWad += fee;
-            }
-        }
-
-        require(dai.transferFrom(msg.sender, address(this), daiInWad), "LitePsm/dai-transfer-failed");
-        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
-
-        emit BuyGem(usr, gemAmt, fee);
-        return daiInWad;
+        daiInWad = _buyGem(usr, gemAmt, tout);
     }
 
     /**
-     * @notice Swaps Dai into `gem` without any fees.
+     * @notice Function that swaps Dai into `gem` without any fees.
      * @dev Only users whitelisted through `kiss()` can call this function.
-     * @param usr The destination of the swapped gems.
-     * @param gemAmt The amount of gem to swap. [`gem` precision].
-     * @return daiInWad The amount of Dai required for swapping.
+     * @param usr The destination of the bought gems.
+     * @param gemAmt The amount of gem to buy. [`gem` precision].
+     * @return daiInWad The amount of Dai required to sell.
      */
-    function buyGemNoFee(address usr, uint256 gemAmt) external onlyBud returns (uint256 daiInWad) {
-        daiInWad = gemAmt * to18ConversionFactor;
-
-        require(dai.transferFrom(msg.sender, address(this), daiInWad), "LitePsm/dai-transfer-failed");
-        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
-
-        emit BuyGem(usr, gemAmt, 0);
-        return daiInWad;
+    function buyGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiInWad) {
+        daiInWad = _buyGem(usr, gemAmt, 0);
     }
 
     /*//////////////////////////////////
@@ -418,45 +373,32 @@ contract DssLitePsm {
     //////////////////////////////////*/
 
     /**
-     * @notice Mints Dai into this contract to try to match USDC balance of `keg`.
+     * @notice Mints Dai into this contract up to buf value
      * @dev The actual minted amount can be limited by the debt ceiling (`line`).
      * @return wad The amount of Dai minted.
      */
-    function fill() public returns (uint256 wad) {
-        uint256 gemLiq = gem.balanceOf(address(keg)) * to18ConversionFactor;
-        return _doFill(_subCap(gemLiq, cash()));
-    }
-
-    /**
-     * @notice Mints up to `max` Dai into this contract.
-     * @dev The actual minted amount can be limited by the debt ceiling (`line`).
-     * @param max The maximum amount of Dai to mint [`wad`].
-     * @return wad The amount of Dai minted.
-     */
-    function _doFill(uint256 max) internal returns (uint256 wad) {
-        // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
-        // `rate` is assumed to be 1 (10 ** 27)
-        // `spot` is assumed to be 1 (10 ** 27)
-        (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
-        uint256 debt = Art * RAY;
-        require(line > debt, "LitePsm/fill-line-exceeded");
-
-        uint256 room;
-        unchecked {
-            // `line` and `debt` are in RAD precision.
-            room = (line - debt) / RAY;
+    function fill() external returns (uint256 wad) {
+        (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
+        require(rate == RAY, "DssLitePsm/rate-not-RAY");
+        uint256 desiredArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        uint256 lineWad = line / RAY;
+        uint256 Line = vat.Line();
+        uint256 debt = vat.debt();
+        require(desiredArt > Art && lineWad > Art && Line > debt, "DssLitePsm/nothing-to-fill");
+        unchecked{
+            wad = _min(
+                    _min(
+                        desiredArt - Art, // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art
+                        lineWad - Art
+                    ),
+                    (Line - debt) / RAY
+                );
         }
-
-        wad = _min(room, max);
-        require(wad > 0, "LitePsm/fill-unavailable");
-
         int256 swad = _int256(wad);
         vat.slip(ilk, address(this), swad);
         vat.frob(ilk, address(this), address(this), address(this), swad, swad);
         daiJoin.exit(address(this), wad);
-
         emit Fill(wad);
-        return wad;
     }
 
     /**
@@ -466,16 +408,32 @@ contract DssLitePsm {
      * @return wad The amount of Dai burned.
      */
     function trim() external returns (uint256 wad) {
-        wad = gush();
-        require(wad > 0, "LitePsm/trim-unavailable");
-
-        int256 swad = -1 * _int256(wad);
+        (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
+        require(rate == RAY, "DssLitePsm/rate-not-RAY");
+        uint256 desiredArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        uint256 lineWad = line / RAY;
+        uint256 Line = vat.Line();
+        uint256 debt = vat.debt();
+        // TODO: Analyse if we want to unwind due to global debt ceiling being passed
+        unchecked{
+            wad =
+                _min(
+                    _max(
+                        _max(
+                            Art > desiredArt ? Art - desiredArt : 0, // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art
+                            Art > lineWad ? Art - lineWad : 0
+                        ),
+                        debt > Line ? _divup(debt - Line, RAY) : 0
+                    ),
+                    dai.balanceOf(address(this))
+                );
+        }
+        require(wad > 0, "DssLitePsm/nothing-to-trim");
         daiJoin.join(address(this), wad);
+        int256 swad = -_int256(wad);
         vat.frob(ilk, address(this), address(this), address(this), swad, swad);
         vat.slip(ilk, address(this), swad);
-
         emit Trim(wad);
-        return wad;
     }
 
     /**
@@ -483,81 +441,16 @@ contract DssLitePsm {
      * @return wad The amount added to the surplus buffer.
      */
     function chug() external returns (uint256 wad) {
-        require(vow != address(0), "LitePsm/chug-missing-vow");
-        require(cut > 0, "LitePsm/chug-unavailable");
-
-        daiJoin.join(vow, cut);
-        wad = cut;
-        cut = 0;
-
+        require(vow != address(0), "DssLitePsm/chug-missing-vow");
+        // To keep the swap function lighter, _sellGem allows to take pre-minted DAI up to the whole balance
+        // regardless if a part belongs to the system collected fees.
+        // So if there is not enough balance it will need to wait for new pre-minted DAI to be generated
+        // or DAI swapped back to complete the withdrawal of fees.
+        (, uint256 art) = vat.urns(ilk, address(this));
+        uint256 daiB = dai.balanceOf(address(this));
+        wad = _min(daiB, daiB + gem.balanceOf(keg) * to18ConversionFactor - art);
+        require(wad > 0, "DssLitePsm/nothing-to-chug");
+        daiJoin.join(vow, wad);
         emit Chug(wad);
-        return wad;
-    }
-
-    /*//////////////////////////////////
-             Emergency Shutdown
-    //////////////////////////////////*/
-
-    /**
-     * @notice Withdraws `gem` after Emergency Shutdown.
-     * @param usr The destination of the gems.
-     * @param gemAmt The amount of gem to withdraw. [`gem` precision].
-     */
-    function exit(address usr, uint256 gemAmt) external {
-        vat.slip(ilk, msg.sender, -_int256(gemAmt * to18ConversionFactor));
-        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
-
-        emit Exit(usr, gemAmt);
-    }
-
-    /*//////////////////////////////////
-                  Getters
-    //////////////////////////////////*/
-
-    /**
-     * @notice Returns the amount of Dai available for swapping through this contract.
-     * @dev The Dai balance of this contract minus the accumulated fees.
-     * @return wad The amount of Dai.
-     */
-    function cash() public view returns (uint256 wad) {
-        return _subCap(dai.balanceOf(address(this)), cut);
-    }
-
-    /**
-     * @notice Returns the missing amount of Dai that can be minted into this contract.
-     * @return wad The amount of Dai.
-     */
-    function rush() public view returns (uint256 wad) {
-        uint256 gemLiq = gem.balanceOf(address(keg)) * to18ConversionFactor;
-        uint256 daiLiq = cash();
-        // There is only 1 `urn`, so we can use `ilk.Art` instead of `urn.art`.
-        // `rate` is assumed to be 1 (10 ** 27)
-        // `spot` is assumed to be 1 (10 ** 27)
-        (uint256 Art,,, uint256 line,) = vat.ilks(ilk);
-        uint256 debt = Art * RAY;
-
-        return _min(
-            // Dai gap relative to gem liquidity.
-            _subCap(gemLiq, daiLiq),
-            // Remaining debt available, in `wad`.
-            _subCap(line, debt) / RAY
-        );
-    }
-
-    /**
-     * @notice Returns the excess Dai that can be burnt from this contract.
-     * @return wad The amount of Dai.
-     */
-    function gush() public view returns (uint256 wad) {
-        uint256 daiLiq = cash();
-        uint256 gemLiq = gem.balanceOf(address(keg)) * to18ConversionFactor;
-        (,,, uint256 line,) = vat.ilks(ilk);
-
-        return _max(
-            // Excess Dai relative to gem liquidity.
-            _subCap(daiLiq, gemLiq),
-            // Excess Dai relative to the debt ceiling.
-            _subCap(daiLiq, (line / RAY))
-        );
     }
 }
