@@ -300,74 +300,118 @@ contract DssLitePsmTest is DssTest {
     // //////////////////////////////////*/
 
     function testFill() public {
-        dss.vat.fold(ilk, address(111), 1);
-        vm.expectRevert("DssLitePsm/rate-not-RAY");
-        litePsm.fill();
+        // Checks against invalid rate
+        {
+            uint256 beforeFold = vm.snapshot();
 
-        dss.vat.fold(ilk, address(111), -1);
+            dss.vat.fold(ilk, address(111), 1);
+            vm.expectRevert("DssLitePsm/rate-not-RAY");
+            litePsm.fill();
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 0);
-        assertEq(_totalDebt(ilk), 0);
+            vm.revertTo(beforeFold);
+        }
 
-        vm.expectEmit(true, true, true, true);
-        emit Fill(10_000_000 * WAD);
-        assertEq(litePsm.fill(), 10_000_000 * WAD);
+        // 1st fill
+        {
+            assertEq(dss.dai.balanceOf(address(litePsm)), 0);
+            assertEq(_debt(ilk), 0);
 
-        vm.expectRevert("DssLitePsm/nothing-to-fill"); // buf == pre-minted unused DAI
-        litePsm.fill();
+            vm.expectEmit(true, true, true, true);
+            emit Fill(10_000_000 * WAD);
+            assertEq(litePsm.fill(), 10_000_000 * WAD, "fill: invalid filled amount on 1st fill");
+        }
 
-        litePsm.file("buf", 8_000_000 * WAD);
+        // Cannot fill because buf == pre-minted unused DAI
+        {
+            vm.expectRevert("DssLitePsm/nothing-to-fill");
+            litePsm.fill();
+        }
 
-        vm.expectRevert("DssLitePsm/nothing-to-fill"); // buf < pre-minted unused DAI
-        litePsm.fill();
+        // Cannot fill because buf < pre-minted unused DAI
+        {
+            uint256 beforeFile = vm.snapshot();
 
-        litePsm.file("buf", 10_000_000 * WAD);
+            litePsm.file("buf", 8_000_000 * WAD);
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 10_000_000 * WAD);
-        assertEq(_totalDebt(ilk), 10_000_000 * RAD);
+            vm.expectRevert("DssLitePsm/nothing-to-fill");
+            litePsm.fill();
 
-        litePsm.sellGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
+            vm.revertTo(beforeFile);
+        }
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 0);
-        assertEq(_totalDebt(ilk), 10_000_000 * RAD);
+        // Sell additional gem to max out the debt ceiling
+        {
+            assertEq(
+                dss.dai.balanceOf(address(litePsm)),
+                10_000_000 * WAD,
+                "fill: invalid PSM Dai balance before 1st sellGem"
+            );
+            assertEq(_debt(ilk), 10_000_000 * RAD, "fill: invalid debt before 1st sellGem");
 
-        vm.expectEmit(true, true, true, true);
-        emit Fill(10_000_000 * WAD);
-        assertEq(litePsm.fill(), 10_000_000 * WAD);
+            litePsm.sellGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 10_000_000 * WAD);
-        assertEq(_totalDebt(ilk), 20_000_000 * RAD);
+            assertEq(dss.dai.balanceOf(address(litePsm)), 0, "fill: invalid PSM Dai balance after 1st sellGem");
+            assertEq(_debt(ilk), 10_000_000 * RAD, "fill: invalid debt after 1st sellGem");
+        }
 
-        dss.vat.file(ilk, "line", 25_000_000 * RAD); // Next fill will limit by line
+        // 2nd fill
+        {
+            vm.expectEmit(true, true, true, true);
+            emit Fill(10_000_000 * WAD);
+            assertEq(litePsm.fill(), 10_000_000 * WAD, "fill: invalid filled amount on 2nd fill");
 
-        litePsm.sellGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
+            assertEq(
+                dss.dai.balanceOf(address(litePsm)), 10_000_000 * WAD, "fill: invalid PSM Dai balance after 2nd fill"
+            );
+            assertEq(_debt(ilk), 20_000_000 * RAD, "fill: invalid debt after 2nd fill");
+        }
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 0);
-        assertEq(_totalDebt(ilk), 20_000_000 * RAD);
+        // Next fill will be limited by line
+        {
+            dss.vat.file(ilk, "line", 25_000_000 * RAD);
 
-        vm.expectEmit(true, true, true, true);
-        emit Fill(5_000_000 * WAD);
-        assertEq(litePsm.fill(), 5_000_000 * WAD);
+            litePsm.sellGem(address(0x1337), _wadToAmt(10_000_000 * WAD));
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 5_000_000 * WAD);
-        assertEq(_totalDebt(ilk), 25_000_000 * RAD);
+            assertEq(dss.dai.balanceOf(address(litePsm)), 0, "fill: invalid PSM Dai balance after 2nd sellGem");
+            assertEq(_debt(ilk), 20_000_000 * RAD, "fill: invalid debt after 2nd sellGem");
 
-        vm.expectRevert("DssLitePsm/nothing-to-fill"); // line == debt
-        litePsm.fill();
+            vm.expectEmit(true, true, true, true);
+            emit Fill(5_000_000 * WAD);
+            assertEq(litePsm.fill(), 5_000_000 * WAD, "fill: invalid filled amount on 3rd fill");
 
-        dss.vat.file(ilk, "line", 20_000_000 * RAD);
+            assertEq(
+                dss.dai.balanceOf(address(litePsm)), 5_000_000 * WAD, "fill: invalid PSM Dai balance after 3rd fill"
+            );
+            assertEq(_debt(ilk), 25_000_000 * RAD, "fill: invalid debt after 3rd fill");
+        }
 
-        vm.expectRevert("DssLitePsm/nothing-to-fill"); // line <= debt
-        litePsm.fill();
+        // Cannot fill because line == debt
+        {
+            vm.expectRevert("DssLitePsm/nothing-to-fill");
+            litePsm.fill();
+        }
 
-        dss.vat.file(ilk, "line", 50_000_000 * RAD);
+        // Cannot fill because line < debt
+        {
+            dss.vat.file(ilk, "line", 20_000_000 * RAD);
 
-        vm.expectEmit(true, true, true, true);
-        emit Fill(5_000_000 * WAD);
-        assertEq(litePsm.fill(), 5_000_000 * WAD);
+            vm.expectRevert("DssLitePsm/nothing-to-fill");
+            litePsm.fill();
+        }
 
-        assertEq(dss.dai.balanceOf(address(litePsm)), 10_000_000 * WAD);
-        assertEq(_totalDebt(ilk), 30_000_000 * RAD);
+        //fMoving line higher so we are not constrained by it anymore
+        {
+            dss.vat.file(ilk, "line", 50_000_000 * RAD);
+
+            vm.expectEmit(true, true, true, true);
+            emit Fill(5_000_000 * WAD);
+            assertEq(litePsm.fill(), 5_000_000 * WAD, "fill: invalid filled amount on 4th fill");
+
+            assertEq(
+                dss.dai.balanceOf(address(litePsm)), 10_000_000 * WAD, "fill: invalid PSM Dai balance after 4th fill"
+            );
+            assertEq(_debt(ilk), 30_000_000 * RAD, "fill: invalid debt after 4th fill");
+        }
     }
 
     function testTrim() public {
