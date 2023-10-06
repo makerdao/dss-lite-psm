@@ -123,7 +123,9 @@ contract DssLitePsmTest is DssTest {
     function testAuthMethods() public {
         // Revoke ward role for this contract
         GodMode.setWard(address(litePsm), address(this), 0);
-        checkModifier(address(litePsm), "DssLitePsm/not-authorized", [DssLitePsm.kiss.selector, DssLitePsm.diss.selector]);
+        checkModifier(
+            address(litePsm), "DssLitePsm/not-authorized", [DssLitePsm.kiss.selector, DssLitePsm.diss.selector]
+        );
     }
 
     function testOnlyBudMethods() public {
@@ -134,7 +136,7 @@ contract DssLitePsmTest is DssTest {
 
     function testFile() public {
         /*//////////////////////////////////
-                     tin, tout & buf
+                  tin, tout & buf
         //////////////////////////////////*/
         assertEq(litePsm.wards(address(this)), 1, "Invalid ward setting");
 
@@ -499,7 +501,11 @@ contract DssLitePsmTest is DssTest {
 
         assertEq(vowDai, pvowDai + cut * RAY, "chug: invalid vat.dai(vow) change after chug");
         assertEq(daiBalancePsm, pdaiBalancePsm - cut, "chug: invalid dai.balanceOf(litePsm) change after chug");
-        assertEq(daiBalancePsm + usdcBalanceKeg * litePsm.__to18ConversionFactor() - 10_000_000 * WAD, 0, "chug: invalid cut after chug");
+        assertEq(
+            daiBalancePsm + usdcBalanceKeg * litePsm.__to18ConversionFactor() - 10_000_000 * WAD,
+            0,
+            "chug: invalid cut after chug"
+        );
     }
 
     function testChugRevertWhenVowIsAddressZero() public {
@@ -684,7 +690,8 @@ contract DssLitePsmTest is DssTest {
 
     function _cut() internal view returns (uint256 amt) {
         (, uint256 art) = dss.vat.urns(ilk, address(litePsm));
-        amt = dss.dai.balanceOf(address(litePsm)) + usdc.balanceOf(address(keg)) * litePsm.__to18ConversionFactor() - art;
+        amt =
+            dss.dai.balanceOf(address(litePsm)) + usdc.balanceOf(address(keg)) * litePsm.__to18ConversionFactor() - art;
     }
 
     event Fill(uint256 wad);
