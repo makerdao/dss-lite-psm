@@ -212,6 +212,13 @@ contract DssLitePsm {
         }
     }
 
+    ///@dev Returns the difference between `x` and `y` if `x >= y` or zero otherwise.
+    function _subcap(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        unchecked {
+            z = x >= y ? x - y : 0;
+        }
+    }
+
     /*//////////////////////////////////
                Administration
     //////////////////////////////////*/
@@ -292,18 +299,6 @@ contract DssLitePsm {
                   Swapping
     //////////////////////////////////*/
 
-    function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 daiOutWad) {
-        daiOutWad = gemAmt * to18ConversionFactor;
-        uint256 fee;
-        if (tin_ > 0) {
-            fee = daiOutWad * tin_ / WAD;
-            unchecked { daiOutWad -= fee; } // Since `tin_` is bounded to WAD, this can never underflow.
-        }
-        gem.transferFrom(msg.sender, keg, gemAmt);
-        dai.transfer(usr, daiOutWad); // This can consume the whole balance including system fees not withdrawn
-        emit SellGem(usr, gemAmt, fee);
-    }
-
     /**
      * @notice Function that swaps `gem` into Dai.
      * @param usr The destination of the bought Dai.
@@ -325,16 +320,30 @@ contract DssLitePsm {
         daiOutWad = _sellGem(usr, gemAmt, 0);
     }
 
-    function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 daiInWad) {
-        daiInWad = gemAmt * to18ConversionFactor;
+    /**
+     * @notice Function that swaps `gem` into Dai.
+     * @param usr The destination of the bought Dai.
+     * @param gemAmt The amount of gem to sell. [`gem` precision].
+     * @param tin_ The fee rate applicable to the swap [`1 * WAD` = 100%].
+     * @return daiOutWad The amount of Dai bought.
+     */
+    function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 daiOutWad) {
         uint256 fee;
-        if (tout_ > 0) {
-            fee = daiInWad * tout_ / WAD;
-            daiInWad += fee;
+
+        daiOutWad = gemAmt * to18ConversionFactor;
+        if (tin_ > 0) {
+            fee = daiOutWad * tin_ / WAD;
+            // Since `tin_` is bounded to WAD, this can never underflow.
+            unchecked {
+                daiOutWad -= fee;
+            }
         }
-        dai.transferFrom(msg.sender, address(this), daiInWad);
-        gem.transferFrom(keg, usr, gemAmt);
-        emit BuyGem(usr, gemAmt, fee);
+
+        gem.transferFrom(msg.sender, keg, gemAmt);
+        // This can consume the whole balance including system fees not withdrawn
+        dai.transfer(usr, daiOutWad);
+
+        emit SellGem(usr, gemAmt, fee);
     }
 
     /**
@@ -358,36 +367,62 @@ contract DssLitePsm {
         daiInWad = _buyGem(usr, gemAmt, 0);
     }
 
+    /**
+     * @notice Function that swaps Dai into `gem`.
+     * @param usr The destination of the bought gems.
+     * @param gemAmt The amount of gem to buy. [`gem` precision].
+     * @param tout_ The fee rate applicable to the swap [`1 * WAD` = 100%].
+     * @return daiInWad The amount of Dai required to sell.
+     */
+    function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 daiInWad) {
+        uint256 fee;
+        daiInWad = gemAmt * to18ConversionFactor;
+
+        if (tout_ > 0) {
+            fee = daiInWad * tout_ / WAD;
+            daiInWad += fee;
+        }
+
+        dai.transferFrom(msg.sender, address(this), daiInWad);
+        gem.transferFrom(keg, usr, gemAmt);
+
+        emit BuyGem(usr, gemAmt, fee);
+    }
+
     /*//////////////////////////////////
                 Bookkeeping
     //////////////////////////////////*/
 
     /**
      * @notice Mints Dai into this contract up to buf value
-     * @dev The actual minted amount can be limited by the debt ceiling (`line`).
+     * @dev The actual minted amount can be limited by the local and global debt ceilings.
      * @return wad The amount of Dai minted.
      */
     function fill() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        uint256 desiredArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
-        uint256 lineWad = line / RAY;
+
+        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
         uint256 Line = vat.Line();
         uint256 debt = vat.debt();
-        require(desiredArt > Art && lineWad > Art && Line > debt, "DssLitePsm/nothing-to-fill");
-        unchecked{
+
+        unchecked {
             wad = _min(
-                    _min(
-                        desiredArt - Art, // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art
-                        lineWad - Art
-                    ),
-                    (Line - debt) / RAY
-                );
+                _min(
+                    // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art
+                    _subcap(tArt, Art),
+                    _subcap(line / RAY, Art)
+                ),
+                _subcap(Line, debt) / RAY
+            );
         }
+        require(wad > 0, "DssLitePsm/nothing-to-fill");
+
         int256 swad = _int256(wad);
         vat.slip(ilk, address(this), swad);
         vat.frob(ilk, address(this), address(this), address(this), swad, swad);
         daiJoin.exit(address(this), wad);
+
         emit Fill(wad);
     }
 
@@ -400,29 +435,33 @@ contract DssLitePsm {
     function trim() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        uint256 desiredArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
-        uint256 lineWad = line / RAY;
+
+        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
         uint256 Line = vat.Line();
         uint256 debt = vat.debt();
-        // TODO: Analyse if we want to unwind due to global debt ceiling being passed
-        unchecked{
-            wad =
-                _min(
+
+        // TODO: Analyse if we want to unwind due to global debt ceiling being passed.
+        unchecked {
+            wad = _min(
+                _max(
                     _max(
-                        _max(
-                            Art > desiredArt ? Art - desiredArt : 0, // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art
-                            Art > lineWad ? Art - lineWad : 0
-                        ),
-                        debt > Line ? _divup(debt - Line, RAY) : 0
+                        // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art.
+                        _subcap(Art, tArt),
+                        _subcap(Art, line / RAY)
                     ),
-                    dai.balanceOf(address(this))
-                );
+                    _divup(_subcap(debt, Line), RAY)
+                ),
+                // Cannot burn more than the current balance.
+                dai.balanceOf(address(this))
+            );
         }
         require(wad > 0, "DssLitePsm/nothing-to-trim");
-        daiJoin.join(address(this), wad);
+
         int256 swad = -_int256(wad);
+        daiJoin.join(address(this), wad);
         vat.frob(ilk, address(this), address(this), address(this), swad, swad);
         vat.slip(ilk, address(this), swad);
+
         emit Trim(wad);
     }
 
@@ -431,16 +470,21 @@ contract DssLitePsm {
      * @return wad The amount added to the surplus buffer.
      */
     function chug() external returns (uint256 wad) {
-        require(vow != address(0), "DssLitePsm/chug-missing-vow");
+        // Cache in the stack to avoid additional SLOADs
+        address vow_ = vow;
+        require(vow_ != address(0), "DssLitePsm/chug-missing-vow");
+
         // To keep the swap function lighter, _sellGem allows to take pre-minted DAI up to the whole balance
         // regardless if a part belongs to the system collected fees.
         // So if there is not enough balance it will need to wait for new pre-minted DAI to be generated
         // or DAI swapped back to complete the withdrawal of fees.
         (, uint256 art) = vat.urns(ilk, address(this));
-        uint256 daiB = dai.balanceOf(address(this));
-        wad = _min(daiB, daiB + gem.balanceOf(keg) * to18ConversionFactor - art);
+        uint256 cash = dai.balanceOf(address(this));
+
+        wad = _min(cash, cash + gem.balanceOf(keg) * to18ConversionFactor - art);
         require(wad > 0, "DssLitePsm/nothing-to-chug");
-        daiJoin.join(vow, wad);
+        daiJoin.join(vow_, wad);
+
         emit Chug(wad);
     }
 }
