@@ -167,12 +167,6 @@ contract DssLitePsm {
      * @param fee The fee paid by the user.
      */
     event BuyGem(address indexed owner, uint256 amt, uint256 fee);
-    /**
-     * @notice A user has gotten `gem` tokens after Emergency Shutdown
-     * @param usr The user address.
-     * @param amt The amount of `gem` received.
-     */
-    event Exit(address indexed usr, uint256 amt);
 
     modifier auth() {
         require(wards[msg.sender] == 1, "LitePsm/not-authorized");
@@ -511,22 +505,6 @@ contract DssLitePsm {
 
         emit Chug(wad);
         return wad;
-    }
-
-    /*//////////////////////////////////
-             Emergency Shutdown
-    //////////////////////////////////*/
-
-    /**
-     * @notice Withdraws `gem` after Emergency Shutdown.
-     * @param usr The destination of the gems.
-     * @param gemAmt The amount of gem to withdraw. [`gem` precision].
-     */
-    function exit(address usr, uint256 gemAmt) external {
-        vat.slip(ilk, msg.sender, -_int256(gemAmt * to18ConversionFactor));
-        require(gem.transferFrom(keg, usr, gemAmt), "LitePsm/gem-transfer-failed");
-
-        emit Exit(usr, gemAmt);
     }
 
     /*//////////////////////////////////

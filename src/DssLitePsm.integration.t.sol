@@ -760,37 +760,6 @@ abstract contract DssLitePsmBaseTest is DssTest {
     }
 
     /*//////////////////////////////////
-             Emergency Shutdown
-    //////////////////////////////////*/
-
-    function testExit() public {
-        address usr = address(0x1234);
-        uint256 gemWad = 50 * WAD;
-        uint256 gemAmt = _wadToAmt(gemWad);
-        litePsm.sellGem(address(0x1337), gem.balanceOf(address(this)));
-        // Simulate emergency shutdown by slipping some `gem` into this contract.
-        dss.vat.slip(ilk, address(this), int256(gemWad));
-
-        vm.expectEmit(true, false, false, true);
-        emit Exit(usr, gemAmt);
-        litePsm.exit(usr, gemAmt);
-
-        assertEq(dss.vat.gem(ilk, address(this)), 0, "exit: invalid vat.gem after exit");
-        assertEq(gem.balanceOf(usr), gemAmt, "exit: invalid gem balance before exit");
-    }
-
-    function testExit_Revert_WhenSenderHasNoGem() public {
-        uint256 gemWad = 50 * WAD;
-        uint256 gemAmt = _wadToAmt(gemWad);
-
-        litePsm.sellGem(address(0x1337), gem.balanceOf(address(this)));
-
-        // Should revert because of underflow on vat.frob(), where there is no revert message
-        vm.expectRevert();
-        litePsm.exit(address(0x1234), gemAmt);
-    }
-
-    /*//////////////////////////////////
                 Corner Cases
     //////////////////////////////////*/
 
@@ -914,7 +883,6 @@ abstract contract DssLitePsmBaseTest is DssTest {
     event Fill(uint256 wad);
     event Trim(uint256 wad);
     event Chug(uint256 wad);
-    event Exit(address indexed usr, uint256 amt);
     event SellGem(address indexed owner, uint256 amt, uint256 fee);
     event BuyGem(address indexed owner, uint256 amt, uint256 fee);
 }
