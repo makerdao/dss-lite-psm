@@ -80,7 +80,7 @@ contract DssLitePsm {
     /// @notice Fee for buying gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tout;
-    /// @notice Buffer for pre-minted DAI.
+    /// @notice Buffer for pre-minted Dai.
     /// @dev `wad` precision.
     uint256 public buf;
 
@@ -472,20 +472,17 @@ contract DssLitePsm {
      * @return wad The amount added to the surplus buffer.
      */
     function chug() external returns (uint256 wad) {
-        // Cache in the stack to avoid additional SLOADs
-        address vow_ = vow;
-        require(vow_ != address(0), "DssLitePsm/chug-missing-vow");
+        require(vow != address(0), "DssLitePsm/chug-missing-vow");
 
-        // To keep the swap function lighter, _sellGem allows to take pre-minted DAI up to the whole balance
-        // regardless if a part belongs to the system collected fees.
-        // So if there is not enough balance it will need to wait for new pre-minted DAI to be generated
-        // or DAI swapped back to complete the withdrawal of fees.
+        // To keep `_sellGem` gas usage low, it allows users to take pre-minted Dai up to the whole balance, regardless
+        // if part of it consist of collected fees. If there is not enough balance, it will need to wait for new
+        // pre-minted Dai to be generated or Dai swapped back to complete the withdrawal of fees.
         (, uint256 art) = vat.urns(ilk, address(this));
         uint256 cash = dai.balanceOf(address(this));
 
         wad = _min(cash, cash + gem.balanceOf(keg) * to18ConversionFactor - art);
         require(wad > 0, "DssLitePsm/nothing-to-chug");
-        daiJoin.join(vow_, wad);
+        daiJoin.join(vow, wad);
 
         emit Chug(wad);
     }
