@@ -410,7 +410,7 @@ contract DssLitePsm {
         unchecked {
             wad = _min(
                 _min(
-                    // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art
+                    // To avoid two extra SLOADs it assumes urn.art == ilk.Art
                     _subcap(tArt, Art),
                     _subcap(line / RAY, Art)
                 ),
@@ -447,7 +447,7 @@ contract DssLitePsm {
             wad = _min(
                 _max(
                     _max(
-                        // To avoid two extra SLOADs it assumes psmUrn.art == ilk.Art.
+                        // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
                         _subcap(Art, tArt),
                         _subcap(Art, line / RAY)
                     ),
