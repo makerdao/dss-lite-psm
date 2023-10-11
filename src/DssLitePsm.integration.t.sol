@@ -844,6 +844,31 @@ contract DssLitePsmTest is DssTest {
         litePsm.sellGem(address(this), _wadToAmt(150_000 * WAD));
     }
 
+    function testSellGem_Bug_FrontRunningGriefingAttack() public {
+        // Hypothesis: a user tries to sell the exact amount of Dai available
+        // Attack: a tx selling any amount of gem front-runs the user
+        // Cost: gas costs
+
+        litePsm.file("buf", 100_000 * WAD);
+        litePsm.fill();
+        assertEq(
+            dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "sellGem/front-run grief: invalid cash after 1st fill"
+        );
+
+        // Imagine the block below is a transaction front-running the swap following it
+        {
+            litePsm.sellGem(address(this), _wadToAmt(1 * WAD));
+            assertEq(
+                dss.dai.balanceOf(address(litePsm)),
+                99_999 * WAD,
+                "sellGem/front-run grief: invalid cash after 1st trim"
+            );
+        }
+
+        // Will fail with "Dai/insufficient-balance";
+        litePsm.sellGem(address(this), _wadToAmt(100_000 * WAD));
+    }
+
     /*//////////////////////////////////
                   Helpers
     //////////////////////////////////*/
