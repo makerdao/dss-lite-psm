@@ -401,12 +401,14 @@ contract DssLitePsm {
     function fill() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        // TODO: cleanup after defining whether we should use tArt or not
+        // uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
 
         wad = _min(
             _min(
                 // To avoid two extra SLOADs it assumes urn.art == ilk.Art
-                _subcap(tArt, Art),
+                // _subcap(tArt, Art),
+                _subcap(buf, dai.balanceOf(address(this))),
                 _subcap(line / RAY, Art)
             ),
             _subcap(vat.Line(), vat.debt()) / RAY
@@ -430,19 +432,28 @@ contract DssLitePsm {
     function trim() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        // TODO: cleanup after defining whether we should use tArt or not
+        // uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
 
+        uint256 cash = dai.balanceOf(address(this));
         wad = _min(
-            _max(
+            _min(
                 _max(
-                    // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
-                    _subcap(Art, tArt),
-                    _subcap(Art, line / RAY)
+                    _max(
+                        // _subcap(Art, tArt),
+                        _subcap(cash, buf),
+                        // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
+                        _subcap(Art, line / RAY)
+                    ),
+                    _divup(_subcap(vat.debt(), vat.Line()), RAY)
                 ),
-                _divup(_subcap(vat.debt(), vat.Line()), RAY)
+                // Cannot burn more than the current balance.
+                // dai.balanceOf(address(this))
+                cash
             ),
-            // Cannot burn more than the current balance.
-            dai.balanceOf(address(this))
+            // Cannot frob more than `urn.art`.
+            // To avoid two extra SLOADs it assumes `urn.art == ilk.Art`.
+            Art
         );
         require(wad > 0, "DssLitePsm/nothing-to-trim");
 
@@ -461,9 +472,10 @@ contract DssLitePsm {
     function chug() external returns (uint256 wad) {
         require(vow != address(0), "DssLitePsm/chug-missing-vow");
 
-        // To keep `_sellGem` gas usage low, it allows users to take pre-minted Dai up to the whole balance, regardless
-        // if part of it consist of collected fees. If there is not enough balance, it will need to wait for new
-        // pre-minted Dai to be generated or Dai swapped back to complete the withdrawal of fees.
+        // To keep `_sellGem` gas usage low, it allows users to take pre-minted Dai
+        // up to the whole balance, regardless if part of it consist of collected fees.
+        // If there is not enough balance, it will need to wait for new pre-minted Dai
+        // to be generated or Dai swapped back to complete the withdrawal of fees.
         (, uint256 art) = vat.urns(ilk, address(this));
         uint256 cash = dai.balanceOf(address(this));
 
