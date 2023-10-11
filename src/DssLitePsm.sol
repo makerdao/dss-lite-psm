@@ -401,22 +401,16 @@ contract DssLitePsm {
     function fill() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-
         uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
-        uint256 Line = vat.Line();
-        uint256 debt = vat.debt();
 
-        // TODO: Do we really need `unchecked` here?
-        unchecked {
-            wad = _min(
-                _min(
-                    // To avoid two extra SLOADs it assumes urn.art == ilk.Art
-                    _subcap(tArt, Art),
-                    _subcap(line / RAY, Art)
-                ),
-                _subcap(Line, debt) / RAY
-            );
-        }
+        wad = _min(
+            _min(
+                // To avoid two extra SLOADs it assumes urn.art == ilk.Art
+                _subcap(tArt, Art),
+                _subcap(line / RAY, Art)
+            ),
+            _subcap(vat.Line(), vat.debt()) / RAY
+        );
         require(wad > 0, "DssLitePsm/nothing-to-fill");
 
         int256 swad = _int256(wad);
@@ -436,27 +430,20 @@ contract DssLitePsm {
     function trim() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-
         uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
-        uint256 Line = vat.Line();
-        uint256 debt = vat.debt();
 
-        // TODO: Analyse if we want to unwind due to global debt ceiling being passed.
-        // TODO: Do we really need `unchecked` here?
-        unchecked {
-            wad = _min(
+        wad = _min(
+            _max(
                 _max(
-                    _max(
-                        // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
-                        _subcap(Art, tArt),
-                        _subcap(Art, line / RAY)
-                    ),
-                    _divup(_subcap(debt, Line), RAY)
+                    // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
+                    _subcap(Art, tArt),
+                    _subcap(Art, line / RAY)
                 ),
-                // Cannot burn more than the current balance.
-                dai.balanceOf(address(this))
-            );
-        }
+                _divup(_subcap(vat.debt(), vat.Line()), RAY)
+            ),
+            // Cannot burn more than the current balance.
+            dai.balanceOf(address(this))
+        );
         require(wad > 0, "DssLitePsm/nothing-to-trim");
 
         int256 swad = -_int256(wad);
