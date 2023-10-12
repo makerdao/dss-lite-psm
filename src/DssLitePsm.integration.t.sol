@@ -597,7 +597,7 @@ contract DssLitePsmTest is DssTest {
         litePsm.fill();
 
         litePsm.sellGem(address(this), _wadToAmt(10_000_000 * WAD));
-        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid cut after sellGem");
+        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid cut after 1st sellGem");
 
         litePsm.file("tin", 0);
         // Leave the PSM without any Dai balance
