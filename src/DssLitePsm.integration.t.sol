@@ -671,7 +671,7 @@ contract DssLitePsmTest is DssTest {
             External Influences
     //////////////////////////////////*/
 
-    function testFill_Reproduce_AutoLine() public {
+    function testFillVsAutoLine_Reproduce() public {
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
         GodMode.setWard(address(autoLine), address(this), 1);
 
@@ -695,6 +695,52 @@ contract DssLitePsmTest is DssTest {
             }
 
             vm.revertTo(beforeSwaps);
+        }
+
+        // After reaching the debt ceiling, `AutoLine.exec()` can happen 2x without any gem inflow,
+        // however fill can only be done 1x.
+        {
+            // Make buf == gap to be able to make less calls, but the end result would be the same
+            litePsm.file("buf", 1_000_000 * WAD);
+            litePsm.fill();
+            litePsm.sellGem(address(this), _wadToAmt(1_000_000 * WAD));
+            assertEq(_debt(), 1_000_000 * RAD, "auto-line: invalid debt before 2nd exec");
+            assertEq(_debtCeiling(), 1_000_000 * RAD, "auto-line: invalid line before 2nd exec");
+
+            // Fill is not available because of the debt ceiling
+            {
+                vm.expectRevert("DssLitePsm/nothing-to-fill");
+                litePsm.fill();
+            }
+
+            // 2nd exec
+            {
+                _skipAndRoll(ttl + 1);
+                autoLine.exec(ilk);
+                assertEq(_debt(), 1_000_000 * RAD, "auto-line: invalid debt after 2nd exec");
+                assertEq(_debtCeiling(), 2_000_000 * RAD, "auto-line: invalid line after 2nd exec");
+            }
+
+            // 2nd fill
+            {
+                litePsm.fill();
+                assertEq(_debt(), 2_000_000 * RAD, "auto-line: invalid debt after 2nd fill");
+                assertEq(_debtCeiling(), 2_000_000 * RAD, "auto-line: invalid line after 2nd fill");
+            }
+
+            // 3rd exec
+            {
+                _skipAndRoll(ttl + 1);
+                autoLine.exec(ilk);
+                assertEq(_debt(), 2_000_000 * RAD, "auto-line: invalid debt after 3rd exec");
+                assertEq(_debtCeiling(), 3_000_000 * RAD, "auto-line: invalid line after 3rd exec");
+            }
+
+            // Fill is not available because of gem balance
+            {
+                vm.expectRevert("DssLitePsm/nothing-to-fill");
+                litePsm.fill();
+            }
         }
     }
 
@@ -897,6 +943,11 @@ contract DssLitePsmTest is DssTest {
         return Art * rate;
     }
 
+    function _debtCeiling() internal view returns (uint256) {
+        (,,, uint256 line,) = dss.vat.ilks(ilk);
+        return line;
+    }
+
     function _min(uint256 x, uint256 y) internal pure returns (uint256 z) {
         return x < y ? x : y;
     }
@@ -951,6 +1002,19 @@ contract DssLitePsmTest is DssTest {
 
     function _wadToAmt(uint256 wad) internal view returns (uint256 amt) {
         amt = wad / 10 ** (18 - usdc.decimals());
+    }
+
+    uint256 blk = block.number;
+
+    /**
+     * @notice Advances time and block number.
+     * @dev Forge's `skip()` does not advance blocks.
+     */
+    function _skipAndRoll(uint256 t) internal {
+        skip(t);
+        // Consider 12.5 seconds per block
+        blk += t * 125 / 100;
+        vm.roll(blk);
     }
 
     event Fill(uint256 wad);
