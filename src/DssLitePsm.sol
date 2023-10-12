@@ -401,14 +401,12 @@ contract DssLitePsm {
     function fill() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        // TODO: cleanup after defining whether we should use tArt or not
-        // uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
 
         wad = _min(
             _min(
                 // To avoid two extra SLOADs it assumes urn.art == ilk.Art
-                // _subcap(tArt, Art),
-                _subcap(buf, dai.balanceOf(address(this))),
+                _subcap(tArt, Art),
                 _subcap(line / RAY, Art)
             ),
             _subcap(vat.Line(), vat.debt()) / RAY
@@ -432,29 +430,21 @@ contract DssLitePsm {
     function trim() external returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        // TODO: cleanup after defining whether we should use tArt or not
-        // uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
 
-        uint256 cash = dai.balanceOf(address(this));
         wad = _min(
-            _min(
+            _max(
                 _max(
-                    _max(
-                        // _subcap(Art, tArt),
-                        _subcap(cash, buf),
-                        // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
-                        _subcap(Art, line / RAY)
-                    ),
-                    _divup(_subcap(vat.debt(), vat.Line()), RAY)
+                    // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
+                    _subcap(Art, tArt),
+                    _subcap(Art, line / RAY)
                 ),
-                // Cannot burn more than the current balance.
-                // dai.balanceOf(address(this))
-                cash
+                _divup(_subcap(vat.debt(), vat.Line()), RAY)
             ),
-            // Cannot frob more than `urn.art`.
-            // To avoid two extra SLOADs it assumes `urn.art == ilk.Art`.
-            Art
+            // Cannot burn more than the current balance.
+            dai.balanceOf(address(this))
         );
+
         require(wad > 0, "DssLitePsm/nothing-to-trim");
 
         int256 swad = -_int256(wad);

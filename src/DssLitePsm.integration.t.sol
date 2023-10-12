@@ -716,11 +716,11 @@ contract DssLitePsmTest is DssTest {
 
             // We are now allowed to fill again
             litePsm.fill();
-            assertEq(dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "gem donation: invalid cash after 2nd fill");
+            assertEq(dss.dai.balanceOf(address(litePsm)), 150_000 * WAD, "gem donation: invalid cash after 2nd fill");
 
             // Now we can chug the rest of the donation
             assertEq(litePsm.chug(), 50_000 * WAD, "gem donation: invalid chugged amount on 2nd chug");
-            assertEq(dss.dai.balanceOf(address(litePsm)), 50_000 * WAD, "gem donation: invalid cash after 2nd chug");
+            assertEq(dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "gem donation: invalid cash after 2nd chug");
 
             vm.revertTo(beforeDonation);
         }
@@ -752,33 +752,28 @@ contract DssLitePsmTest is DssTest {
             vm.revertTo(beforeDonation);
         }
 
-        // Dai donation could cause temporary Dai liquidity outage
+        // We guarantee that a previously filled amount cannot be trimmed as the result of a donation
         {
             uint256 beforeDonation = vm.snapshot();
             // Donate exactly the amount of buf
             dss.dai.transfer(address(litePsm), 100_000 * WAD);
             assertEq(dss.dai.balanceOf(address(litePsm)), 200_000 * WAD, "dai donation: invalid cash before 1st trim");
 
-            assertEq(litePsm.trim(), 100_000 * WAD, "dai donation: invalid trimmed amount on 1st trim");
-            assertEq(dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "dai donation: invalid cash after 1st trim");
+            // Now we are not able to trim, as there is no exceeding debt
+            vm.expectRevert("DssLitePsm/nothing-to-trim");
+            litePsm.trim();
 
-            // Cannot fill right after trim
+            // Cannot fill either
             vm.expectRevert("DssLitePsm/nothing-to-fill");
             litePsm.fill();
 
             assertEq(litePsm.chug(), 100_000 * WAD, "dai donation: invalid chugged amount on 2nd chug");
-            assertEq(dss.dai.balanceOf(address(litePsm)), 0, "dai donation: invalid cash after 2nd chug");
+            assertEq(dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "dai donation: invalid cash after 2nd chug");
 
-            // At this point, there is no liquidity available.
-            // If it weren't for the donation, the call to trim above would not have beeen possible.
-            vm.expectRevert("Dai/insufficient-balance");
-            litePsm.sellGem(address(this), 1);
+            // Still cannot fill
+            vm.expectRevert("DssLitePsm/nothing-to-fill");
+            litePsm.fill();
 
-            // So we are required to call fill once again before swapping.
-            assertEq(litePsm.fill(), 100_000 * WAD, "dai donation: invalid filled amount on 2nd fill");
-            assertEq(
-                dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "dai donation: invalid cash before 1st sellGem"
-            );
             litePsm.sellGem(address(this), _wadToAmt(1000 * WAD));
             assertEq(dss.dai.balanceOf(address(litePsm)), 99_000 * WAD, "dai donation: invalid cash after 1st sellGem");
 
