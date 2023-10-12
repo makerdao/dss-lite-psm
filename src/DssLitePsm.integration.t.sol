@@ -782,37 +782,10 @@ contract DssLitePsmTest is DssTest {
     }
 
     /*//////////////////////////////////
-                 Known Bugs
+             Known Limitations
     //////////////////////////////////*/
 
-    function testSellGem_Bug_DaiDonationGriefingAttack() public {
-        // Hypothesis: a user needs to swap exactly the amount of buf
-        // Attack: a tx containing donation + trim + chug front-runs the user
-        // Cost: 1 wei of Dai + gas costs
-
-        litePsm.file("buf", 100_000 * WAD);
-        litePsm.fill();
-
-        // Imagine the block below is a transaction front-running the swap following it
-        {
-            // 1. Donates 1 Dai
-            dss.dai.transfer(address(litePsm), 1 * WAD);
-            assertEq(dss.dai.balanceOf(address(litePsm)), 100_001 * WAD, "dai donation: invalid cash before 1st trim");
-
-            // 2. Trim
-            assertEq(litePsm.trim(), 1 * WAD, "dai donation: invalid trimmed amount on 1st trim");
-            assertEq(dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "dai donation: invalid cash after 1st trim");
-
-            // 3. Chug
-            assertEq(litePsm.chug(), 1 * WAD, "dai donation: invalid chugged amount on 2nd chug");
-            assertEq(dss.dai.balanceOf(address(litePsm)), 99_999 * WAD, "dai donation: invalid cash after 2nd chug");
-        }
-
-        // Will fail with "Dai/insufficient-balance";
-        litePsm.sellGem(address(this), _wadToAmt(100_000 * WAD));
-    }
-
-    function testSellGem_Bug_TrimGriefingAttack() public {
+    function testSellGem_Limitation_TrimGriefingAttack() public {
         // Hypothesis: a user tries to sell more gem than the amount of buf
         // Attack: a tx calling trim front-runs the user
         // Cost: gas costs
@@ -835,15 +808,16 @@ contract DssLitePsmTest is DssTest {
         {
             assertEq(litePsm.trim(), 50_000 * WAD, "sellGem/trim grief: invalid trimmed amount on 1st trim");
             assertEq(
-                dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "sellGem/trim grief:: invalid cash after 1st trim"
+                dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "sellGem/trim grief: invalid cash after 1st trim"
             );
         }
 
-        // Will fail with "Dai/insufficient-balance";
-        litePsm.sellGem(address(this), _wadToAmt(150_000 * WAD));
+        uint256 gemAmt = _wadToAmt(150_000 * WAD);
+        vm.expectRevert("Dai/insufficient-balance");
+        litePsm.sellGem(address(this), gemAmt);
     }
 
-    function testSellGem_Bug_FrontRunningGriefingAttack() public {
+    function testSellGem_Limitation_FrontRunningGriefingAttack() public {
         // Hypothesis: a user tries to sell the exact amount of Dai available
         // Attack: a tx selling any amount of gem front-runs the user
         // Cost: gas costs
@@ -860,12 +834,39 @@ contract DssLitePsmTest is DssTest {
             assertEq(
                 dss.dai.balanceOf(address(litePsm)),
                 99_999 * WAD,
-                "sellGem/front-run grief: invalid cash after 1st trim"
+                "sellGem/front-run grief: invalid cash after 1st sellGem"
             );
         }
 
-        // Will fail with "Dai/insufficient-balance";
+        uint256 gemAmt = _wadToAmt(100_000 * WAD);
+        vm.expectRevert("Dai/insufficient-balance");
+        litePsm.sellGem(address(this), gemAmt);
+    }
+
+    function testBuyGem_Limitation_FrontRunningGriefingAttack() public {
+        // Hypothesis: a user tries to buy the exact amount of gem available
+        // Attack: a tx buying any amount of gem front-runs the user
+        // Cost: gas costs
+
+        litePsm.file("buf", 100_000 * WAD);
+        litePsm.fill();
+        assertEq(
+            dss.dai.balanceOf(address(litePsm)), 100_000 * WAD, "buyGem/front-run grief: invalid cash after 1st fill"
+        );
         litePsm.sellGem(address(this), _wadToAmt(100_000 * WAD));
+
+        // Imagine the block below is a transaction front-running the swap following it
+        {
+            litePsm.buyGem(address(this), _wadToAmt(1 * WAD));
+            assertEq(
+                dss.dai.balanceOf(address(litePsm)), 1 * WAD, "buyGem/front-run grief: invalid cash after 1st buyGem"
+            );
+        }
+
+        // Will fail on gem.transferFrom() due to lack of balance
+        uint256 gemAmt = _wadToAmt(100_000 * WAD);
+        vm.expectRevert();
+        litePsm.buyGem(address(this), gemAmt);
     }
 
     /*//////////////////////////////////
