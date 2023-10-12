@@ -109,7 +109,11 @@ contract DssLitePsmTest is DssTest {
     //////////////////////////////////*/
 
     function testTo18ConversionFactor() public {
-        assertEq(litePsm.__to18ConversionFactor(), 10 ** (18 - usdc.decimals()));
+        assertEq(
+            litePsm.__to18ConversionFactor(),
+            10 ** (18 - usdc.decimals()),
+            "to18ConversionFactor: invalid conversion factor"
+        );
     }
 
     function testSetUpContractDependencies() public {
@@ -308,7 +312,7 @@ contract DssLitePsmTest is DssTest {
     function testFill() public {
         // 1st fill
         {
-            assertEq(dss.dai.balanceOf(address(litePsm)), 0);
+            assertEq(dss.dai.balanceOf(address(litePsm)), 0, "fill: invalid initial cash");
             assertEq(_debt(), 0);
 
             vm.expectEmit(true, true, true, true);
@@ -583,9 +587,9 @@ contract DssLitePsmTest is DssTest {
         // Still the cut didn't change, however now is partially in USDC
         assertEq(_fullCut(), 100_000 * WAD, "chug: invalid cut after 2nd sellGem");
 
-        assertEq(litePsm.chug(), 60_000 * WAD);
+        assertEq(litePsm.chug(), 60_000 * WAD, "chug: invalid chugged amount on 1st chug");
 
-        assertEq(_fullCut(), 40_000 * WAD, "chug: invalid cut after chug");
+        assertEq(_fullCut(), 40_000 * WAD, "chug: invalid cut after 1st chug");
     }
 
     function testChug_Revert_WhenNoDaiBalance() public {
