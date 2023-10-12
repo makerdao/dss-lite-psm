@@ -41,15 +41,16 @@ contract Harness__DssLitePsm is DssLitePsm {
     }
 }
 
-contract DssLitePsmTest is DssTest {
-    using stdStorage for StdStorage;
+abstract contract DssLitePsmBaseTest is DssTest {
+    function _ilk() internal view virtual returns (bytes32);
+    function _setUpGem() internal virtual returns (address);
 
-    bytes32 constant ilk = "LITE_PSM_USDC_A";
     address immutable chainlog = vm.envAddress("CHANGELOG");
 
+    bytes32 ilk;
     DssInstance dss;
     AutoLineLike autoLine;
-    GemLike usdc;
+    GemLike gem;
     DssKeg keg;
     Harness__DssLitePsm litePsm;
     uint256 buf;
@@ -62,7 +63,9 @@ contract DssLitePsmTest is DssTest {
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
         GodMode.setWard(address(autoLine), address(this), 1);
 
-        usdc = GemLike(dss.chainlog.getAddress("USDC"));
+        // From concrete test implementations
+        ilk = _ilk();
+        gem = GemLike(_setUpGem());
 
         // There is a circular dependency between `LitePsm` and `Keg`, so we need to pre-compute
         // their addresses to be able to provide all constructor parameters.
@@ -70,8 +73,8 @@ contract DssLitePsmTest is DssTest {
         address kegAddr = computeCreateAddress(address(this), nonce);
         address litePsmAddr = computeCreateAddress(address(this), nonce + 1);
 
-        keg = new DssKeg(litePsmAddr, address(usdc));
-        litePsm = new Harness__DssLitePsm(ilk, address(usdc), address(dss.daiJoin), kegAddr);
+        keg = new DssKeg(litePsmAddr, address(gem));
+        litePsm = new Harness__DssLitePsm(ilk, address(gem), address(dss.daiJoin), kegAddr);
 
         MCD.initIlk(dss, ilk);
         uint256 dline = 100_000_000 * RAD;
@@ -82,8 +85,8 @@ contract DssLitePsmTest is DssTest {
         GodMode.setWard(dss.vat, address(litePsm), 1);
 
         // Mints 100_000_000 USDC into the test contract.
-        GodMode.setBalance(address(usdc), address(this), _wadToAmt(100_000_000 * WAD));
-        usdc.approve(address(litePsm), type(uint256).max);
+        GodMode.setBalance(address(gem), address(this), _wadToAmt(100_000_000 * WAD));
+        gem.approve(address(litePsm), type(uint256).max);
 
         // Mints 100_000_000 Dai into the test contract.
         GodMode.setBalance(dss.dai, address(this), 100_000_000 * WAD);
@@ -91,7 +94,7 @@ contract DssLitePsmTest is DssTest {
 
         // keg to give unlimited USDC approval to the litePsm.
         vm.prank(address(keg));
-        usdc.approve(address(litePsm), type(uint256).max);
+        gem.approve(address(litePsm), type(uint256).max);
 
         // Setup the vow for litePsm
         litePsm.file("vow", address(dss.vow));
@@ -104,7 +107,6 @@ contract DssLitePsmTest is DssTest {
         vm.label(address(dss.vow), "Vow");
         vm.label(address(dss.dai), "Dai");
         vm.label(address(dss.daiJoin), "DaiJoin");
-        vm.label(address(usdc), "USDC");
     }
 
     /*//////////////////////////////////
@@ -114,7 +116,7 @@ contract DssLitePsmTest is DssTest {
     function testTo18ConversionFactor() public {
         assertEq(
             litePsm.__to18ConversionFactor(),
-            10 ** (18 - usdc.decimals()),
+            10 ** (18 - gem.decimals()),
             "to18ConversionFactor: invalid conversion factor"
         );
     }
@@ -181,8 +183,8 @@ contract DssLitePsmTest is DssTest {
         assertEq(pdaiBalancePsm, 10_000_000 * WAD, "sellGem: invalid cash after fill");
 
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
-        uint256 pusdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 pusdcBalanceKeg = gem.balanceOf(address(keg));
+        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
 
         vm.expectEmit(true, true, true, true);
         emit SellGem(address(this), gemAmt, 0);
@@ -198,9 +200,9 @@ contract DssLitePsmTest is DssTest {
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         assertEq(daiBalanceThis, pdaiBalanceThis + daiOutWad, "sellGem: invalid address(this) Dai balance change");
 
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceKeg, pusdcBalanceKeg + gemAmt, "sellGem: invalid keg USDC balance change");
-        uint256 usdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 usdcBalanceThis = gem.balanceOf(address(this));
         assertEq(usdcBalanceThis, pusdcBalanceThis - gemAmt, "sellGem: invalid address(this) USDC balance change");
     }
 
@@ -214,8 +216,8 @@ contract DssLitePsmTest is DssTest {
         uint256 pdaiTotalSupply = dss.dai.totalSupply();
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
-        uint256 pusdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 pusdcBalanceKeg = gem.balanceOf(address(keg));
+        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
 
         gemAmt = bound(gemAmt, _wadToAmt(1 * WAD), igemAmt);
         vm.expectEmit(true, true, true, true);
@@ -233,9 +235,9 @@ contract DssLitePsmTest is DssTest {
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         assertEq(daiBalanceThis, pdaiBalanceThis + daiOutWad, "sellGem: invalid address(this) Dai balance change");
 
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceKeg, pusdcBalanceKeg + gemAmt, "sellGem: invalid keg USDC balance change");
-        uint256 usdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 usdcBalanceThis = gem.balanceOf(address(this));
         assertEq(usdcBalanceThis, pusdcBalanceThis - gemAmt, "sellGem: invalid address(this) USDC balance change");
 
         vm.expectEmit(true, true, true, true);
@@ -251,8 +253,8 @@ contract DssLitePsmTest is DssTest {
         litePsm.sellGem(address(0x1337), igemAmt);
 
         address usr = address(0xd34d);
-        uint256 pusdcBalanceUsr = usdc.balanceOf(usr);
-        uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 pusdcBalanceUsr = gem.balanceOf(usr);
+        uint256 pusdcBalanceKeg = gem.balanceOf(address(keg));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
 
@@ -261,8 +263,8 @@ contract DssLitePsmTest is DssTest {
         emit BuyGem(usr, gemAmt, 0);
         uint256 daiInWad = litePsm.buyGem(usr, gemAmt);
 
-        uint256 usdcBalanceUsr = usdc.balanceOf(usr);
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceUsr = gem.balanceOf(usr);
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceUsr, pusdcBalanceUsr + gemAmt, "buyGem: invalid usr USDC balance after buyGem");
         assertEq(usdcBalanceKeg, pusdcBalanceKeg - gemAmt, "buyGem: invalid keg USDC balance after buyGem");
 
@@ -279,8 +281,8 @@ contract DssLitePsmTest is DssTest {
         litePsm.sellGem(address(0x1337), igemAmt);
 
         address usr = address(0xd34d);
-        uint256 pusdcBalanceUsr = usdc.balanceOf(usr);
-        uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 pusdcBalanceUsr = gem.balanceOf(usr);
+        uint256 pusdcBalanceKeg = gem.balanceOf(address(keg));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
 
@@ -289,8 +291,8 @@ contract DssLitePsmTest is DssTest {
         emit BuyGem(usr, gemAmt, 0);
         uint256 daiInWad = litePsm.buyGem(usr, gemAmt);
 
-        uint256 usdcBalanceUsr = usdc.balanceOf(usr);
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceUsr = gem.balanceOf(usr);
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceUsr, pusdcBalanceUsr + gemAmt, "buyGem: invalid usr USDC balance after buyGem");
         assertEq(usdcBalanceKeg, pusdcBalanceKeg - gemAmt, "buyGem: invalid keg USDC balance after buyGem");
 
@@ -298,14 +300,6 @@ contract DssLitePsmTest is DssTest {
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalanceThis, pdaiBalanceThis - daiInWad, "buyGem: invalid address(this) Dai balance after buyGem");
         assertEq(daiBalancePsm, pdaiBalancePsm + daiInWad, "buyGem: invalid cash after buyGem");
-    }
-
-    function testBuyGemRevertWhenKegHasNoGem() public {
-        assertEq(usdc.balanceOf(address(keg)), 0, "buyGem: initial keg USDC balance not zero");
-
-        // Error from the USDC implementation on Mainnet
-        vm.expectRevert("ERC20: transfer amount exceeds balance");
-        litePsm.buyGem(address(this), 1);
     }
 
     // /*//////////////////////////////////
@@ -499,8 +493,8 @@ contract DssLitePsmTest is DssTest {
 
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
-        uint256 pusdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 pusdcBalanceKeg = gem.balanceOf(address(keg));
+        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
 
         uint256 pcut = litePsm.cut();
         assertEq(pcut, _fee(tin, gemAmt), "sellGem: invalid fees after initial swap");
@@ -516,20 +510,20 @@ contract DssLitePsmTest is DssTest {
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalancePsm, 10_000_000 * WAD - daiWadOut + daiInWad, "sellGem: invalid cash change");
 
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceKeg, pusdcBalanceKeg - gemAmt / 2, "sellGem: invalid keg USDC balance change");
 
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         assertEq(daiBalanceThis, pdaiBalanceThis - daiInWad, "sellGem: invalid address(this) Dai balance change");
 
-        uint256 usdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 usdcBalanceThis = gem.balanceOf(address(this));
         assertEq(usdcBalanceThis, pusdcBalanceThis + gemAmt / 2, "sellGem: invalid address(this) USDC balance change");
     }
 
     function testChug_Fuzz_Bounded(uint256 gemAmt, uint256 tin_, uint256 tout_) public {
         litePsm.fill();
 
-        gemAmt = bound(gemAmt, 1, _wadToAmt(10_000_000 * WAD));
+        gemAmt = bound(gemAmt, _wadToAmt(1 * WAD), _wadToAmt(10_000_000 * WAD));
         _setupFees(tin_, tout_);
 
         litePsm.sellGem(address(this), gemAmt);
@@ -537,7 +531,7 @@ contract DssLitePsmTest is DssTest {
 
         uint256 pvowDai = dss.vat.dai(address(dss.vow));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         uint256 cut = litePsm.cut();
 
         vm.expectEmit(false, false, false, true);
@@ -630,8 +624,8 @@ contract DssLitePsmTest is DssTest {
         uint256 gemAmt = _wadToAmt(gemAmtWad);
 
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalanceThis = usdc.balanceOf(address(this));
-        uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
+        uint256 pusdcBalanceKeg = gem.balanceOf(address(keg));
 
         // Sell gems
 
@@ -644,18 +638,18 @@ contract DssLitePsmTest is DssTest {
             daiBalanceThis, pdaiBalanceThis + daiWadOut, "no fees: invalid address(this) Dai balance after sellGemNoFee"
         );
 
-        uint256 usdcBalanceThis = usdc.balanceOf(address(this));
+        uint256 usdcBalanceThis = gem.balanceOf(address(this));
         assertEq(
             usdcBalanceThis, pusdcBalanceThis - gemAmt, "no fees: invalid address(this) USDC balance after sellGemNoFee"
         );
-        uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
+        uint256 usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceKeg, pusdcBalanceKeg + gemAmt, "no fees: invalid keg USDC balance after sellGemNoFee");
 
         // Buy gems
 
         pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        pusdcBalanceKeg = usdc.balanceOf(address(keg));
-        pusdcBalanceThis = usdc.balanceOf(address(this));
+        pusdcBalanceKeg = gem.balanceOf(address(keg));
+        pusdcBalanceThis = gem.balanceOf(address(this));
 
         uint256 daiWadIn = litePsm.buyGemNoFee(address(this), gemAmt);
         assertEq(daiWadIn, gemAmtWad, "no fees: unexpected fee on buyGem");
@@ -665,11 +659,11 @@ contract DssLitePsmTest is DssTest {
             daiBalanceThis, pdaiBalanceThis - daiWadIn, "no fees: invalid address(this) Dai balance after buyGemNoFee"
         );
 
-        usdcBalanceThis = usdc.balanceOf(address(this));
+        usdcBalanceThis = gem.balanceOf(address(this));
         assertEq(
             usdcBalanceThis, pusdcBalanceThis + gemAmt, "no fees: invalid address(this) USDC balance after buyGemNoFee"
         );
-        usdcBalanceKeg = usdc.balanceOf(address(keg));
+        usdcBalanceKeg = gem.balanceOf(address(keg));
         assertEq(usdcBalanceKeg, pusdcBalanceKeg - gemAmt, "no fees: invalid keg USDC balance after buyGemNoFee");
     }
 
@@ -757,7 +751,7 @@ contract DssLitePsmTest is DssTest {
         // However, no swap is required to be able to do so.
         {
             uint256 beforeDonation = vm.snapshot();
-            usdc.transfer(address(keg), _wadToAmt(150_000 * WAD));
+            gem.transfer(address(keg), _wadToAmt(150_000 * WAD));
 
             // Will chug up to the existing Dai balance
             assertEq(litePsm.chug(), 100_000 * WAD, "gem donation: invalid chugged amount on 1st chug");
@@ -777,7 +771,7 @@ contract DssLitePsmTest is DssTest {
         // Can chug the full amount right after swapping gem for Dai
         {
             uint256 beforeDonation = vm.snapshot();
-            usdc.transfer(address(keg), _wadToAmt(150_000 * WAD));
+            gem.transfer(address(keg), _wadToAmt(150_000 * WAD));
 
             litePsm.buyGem(address(this), _wadToAmt(150_000 * WAD));
             // Chug should account for swapping fees
@@ -937,7 +931,7 @@ contract DssLitePsmTest is DssTest {
     function _fullCut() internal view returns (uint256) {
         (, uint256 art) = dss.vat.urns(ilk, address(litePsm));
         uint256 daiBalance = dss.dai.balanceOf(address(litePsm));
-        uint256 gemBalanceWad = usdc.balanceOf(litePsm.keg()) * litePsm.__to18ConversionFactor();
+        uint256 gemBalanceWad = gem.balanceOf(litePsm.keg()) * litePsm.__to18ConversionFactor();
         return daiBalance + gemBalanceWad - art;
     }
 
@@ -1000,11 +994,11 @@ contract DssLitePsmTest is DssTest {
     }
 
     function _amtToWad(uint256 amt) internal view returns (uint256 wad) {
-        wad = amt * 10 ** (18 - usdc.decimals());
+        wad = amt * 10 ** (18 - gem.decimals());
     }
 
     function _wadToAmt(uint256 wad) internal view returns (uint256 amt) {
-        amt = wad / 10 ** (18 - usdc.decimals());
+        amt = wad / 10 ** (18 - gem.decimals());
     }
 
     uint256 blk = block.number;
@@ -1026,4 +1020,110 @@ contract DssLitePsmTest is DssTest {
     event Exit(address indexed usr, uint256 wad, uint256 gemAmt);
     event SellGem(address indexed owner, uint256 value, uint256 fee);
     event BuyGem(address indexed owner, uint256 value, uint256 fee);
+}
+
+/*//////////////////////////////////////////////////////////////////////////////
+                                      USDC
+//////////////////////////////////////////////////////////////////////////////*/
+
+contract DssLitePsmUsdcTest is DssLitePsmBaseTest {
+    function _ilk() internal pure override returns (bytes32) {
+        return "LITE_PSM_USDC_A";
+    }
+
+    function _setUpGem() internal override returns (address) {
+        address _gem = dss.chainlog.getAddress("USDC");
+        // Mints 100_000_000 gem into the test contract.
+        GodMode.setBalance(_gem, address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
+        vm.label(_gem, "USDC");
+
+        return _gem;
+    }
+
+    function testBuyGem_Revert_WhenKegHasNoGem() public {
+        assertEq(gem.balanceOf(address(keg)), 0, "buyGem: initial keg gem balance not zero");
+
+        // Error from the USDC implementation on Mainnet
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        litePsm.buyGem(address(this), 1);
+    }
+}
+
+/*//////////////////////////////////////////////////////////////////////////////
+                                      USDP
+//////////////////////////////////////////////////////////////////////////////*/
+
+contract DssLitePsmUsdpTest is DssLitePsmBaseTest {
+    function _ilk() internal pure override returns (bytes32) {
+        return "LITE_PSM_PAXUSD_A";
+    }
+
+    function _setUpGem() internal override returns (address) {
+        address _gem = dss.chainlog.getAddress("PAXUSD");
+        // Mints 100_000_000 gem into the test contract.
+        GodMode.setBalance(_gem, address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
+        vm.label(_gem, "PAXUSD");
+
+        return _gem;
+    }
+
+    function testBuyGem_Revert_WhenKegHasNoGem() public {
+        assertEq(gem.balanceOf(address(keg)), 0, "buyGem: initial keg gem balance not zero");
+
+        // Error from the USDP implementation on Mainnet
+        vm.expectRevert("insufficient funds");
+        litePsm.buyGem(address(this), 1);
+    }
+}
+
+/*//////////////////////////////////////////////////////////////////////////////
+                                      GUSD
+//////////////////////////////////////////////////////////////////////////////*/
+
+interface ERC20Proxy {
+    function erc20Impl() external returns (address);
+
+    function totalSupply() external returns (uint256);
+}
+
+interface ERC20Impl {
+    function erc20Store() external returns (address);
+}
+
+interface ERC20Store {
+    function setTotalSupply(uint256 _newTotalSupply) external;
+
+    function setBalance(address _owner, uint256 _newBalance) external;
+}
+
+contract DssLitePsmGusdTest is DssLitePsmBaseTest {
+    function _ilk() internal pure override returns (bytes32) {
+        return "LITE_PSM_GUSD_A";
+    }
+
+    function _setUpGem() internal override returns (address) {
+        address _gem = dss.chainlog.getAddress("GUSD");
+        vm.label(_gem, "GUSD");
+
+        // Add GUSD blance
+        address impl = ERC20Proxy(address(_gem)).erc20Impl();
+        ERC20Store store = ERC20Store(ERC20Impl(impl).erc20Store());
+
+        vm.startPrank(impl);
+
+        store.setBalance(address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
+        store.setTotalSupply(ERC20Proxy(_gem).totalSupply() + 100_000_000 * (10 ** GemLike(_gem).decimals()));
+
+        vm.stopPrank();
+
+        return _gem;
+    }
+
+    function testBuyGem_Revert_WhenKegHasNoGem() public {
+        assertEq(gem.balanceOf(address(keg)), 0, "buyGem: initial keg gem balance not zero");
+
+        // No error msg from the GUSD implementation on Mainnet
+        vm.expectRevert();
+        litePsm.buyGem(address(this), 1);
+    }
 }
