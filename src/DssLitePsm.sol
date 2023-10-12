@@ -119,7 +119,7 @@ contract DssLitePsm {
     event File(bytes32 indexed what, address data);
     /**
      * @notice A contract parameter was updated.
-     * @param what The changed parameter name. ["tin", "tout"].
+     * @param what The changed parameter name. ["tin", "tout", "buf"].
      * @param data The new value of the parameter.
      */
     event File(bytes32 indexed what, uint256 data);
