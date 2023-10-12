@@ -148,7 +148,7 @@ contract DssLitePsm {
      */
     event Trim(uint256 wad);
     /**
-     * @notice Dai accumulated as swap fees was added to the surplus buffer..
+     * @notice Dai accumulated as swap fees was added to the surplus buffer.
      * @param wad The amount of Dai added.
      */
     event Chug(uint256 wad);
