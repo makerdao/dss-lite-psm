@@ -124,7 +124,7 @@ contract DssLitePsm {
      */
     event File(bytes32 indexed what, uint256 data);
     /**
-     * @notice A user sold `gem` for Dai>
+     * @notice A user sold `gem` for Dai.
      * @param owner The user address.
      * @param value The amount of `gem` sold.
      * @param fee The fee paid by the user.
