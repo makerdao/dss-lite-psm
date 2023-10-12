@@ -399,6 +399,58 @@ contract DssLitePsm {
      * @return wad The amount of Dai minted.
      */
     function fill() external returns (uint256 wad) {
+        wad = rush();
+        require(wad > 0, "DssLitePsm/nothing-to-fill");
+        int256 swad = _int256(wad);
+
+        vat.slip(ilk, address(this), swad);
+        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
+        daiJoin.exit(address(this), wad);
+
+        emit Fill(wad);
+    }
+
+    /**
+     * @notice Burns any excess of Dai from this contract.
+     * @dev The total outstanding debt can still be larger than the debt ceiling after `trim`.
+     *      Additional `buyGem` calls will enable further `trim` calls.
+     * @return wad The amount of Dai burned.
+     */
+    function trim() external returns (uint256 wad) {
+        wad = gush();
+        require(wad > 0, "DssLitePsm/nothing-to-trim");
+        int256 swad = -_int256(wad);
+
+        daiJoin.join(address(this), wad);
+        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
+        vat.slip(ilk, address(this), swad);
+
+        emit Trim(wad);
+    }
+
+    /**
+     * @notice Incorporates any outstanding accumulated fees into the surplus buffer.
+     * @return wad The amount added to the surplus buffer.
+     */
+    function chug() external returns (uint256 wad) {
+        require(vow != address(0), "DssLitePsm/chug-missing-vow");
+        wad = cut();
+        require(wad > 0, "DssLitePsm/nothing-to-chug");
+
+        daiJoin.join(vow, wad);
+
+        emit Chug(wad);
+    }
+
+    /*//////////////////////////////////
+                  Getters
+    //////////////////////////////////*/
+
+    /**
+     * @notice Returns the missing Dai that can be filled into this contract.
+     * @return wad The amount of Dai.
+     */
+    function rush() public view returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
         uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
@@ -411,23 +463,13 @@ contract DssLitePsm {
             ),
             _subcap(vat.Line(), vat.debt()) / RAY
         );
-        require(wad > 0, "DssLitePsm/nothing-to-fill");
-
-        int256 swad = _int256(wad);
-        vat.slip(ilk, address(this), swad);
-        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
-        daiJoin.exit(address(this), wad);
-
-        emit Fill(wad);
     }
 
     /**
-     * @notice Burns any excess of Dai from this contract.
-     * @dev The total outstanding debt can still be larger than the debt ceiling after `trim`.
-     * Additional `buyGem` calls will enable further `trim` calls.
-     * @return wad The amount of Dai burned.
+     * @notice Returns the excess Dai that can be trimmed from this contract.
+     * @return wad The amount of Dai.
      */
-    function trim() external returns (uint256 wad) {
+    function gush() public view returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
         uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
@@ -444,35 +486,20 @@ contract DssLitePsm {
             // Cannot burn more than the current balance.
             dai.balanceOf(address(this))
         );
-
-        require(wad > 0, "DssLitePsm/nothing-to-trim");
-
-        int256 swad = -_int256(wad);
-        daiJoin.join(address(this), wad);
-        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
-        vat.slip(ilk, address(this), swad);
-
-        emit Trim(wad);
     }
 
     /**
-     * @notice Incorporates any outstanding accumulated fees into the surplus buffer.
-     * @return wad The amount added to the surplus buffer.
+     * @notice Returns the amount of swapping fees that can be chugged by this contract.
+     * @dev To keep `_sellGem` gas usage low, it allows users to take pre-minted Dai up to the whole balance, regardless
+     *      if part of it consist of collected fees.
+     *      If there is not enough balance, it will need to wait for new pre-minted Dai to be generated or Dai swapped
+     *      back to complete the withdrawal of fees.
+     * @return wad The amount of Dai.
      */
-    function chug() external returns (uint256 wad) {
-        require(vow != address(0), "DssLitePsm/chug-missing-vow");
-
-        // To keep `_sellGem` gas usage low, it allows users to take pre-minted Dai
-        // up to the whole balance, regardless if part of it consist of collected fees.
-        // If there is not enough balance, it will need to wait for new pre-minted Dai
-        // to be generated or Dai swapped back to complete the withdrawal of fees.
+    function cut() public view returns (uint256 wad) {
         (, uint256 art) = vat.urns(ilk, address(this));
         uint256 cash = dai.balanceOf(address(this));
 
         wad = _min(cash, cash + gem.balanceOf(keg) * to18ConversionFactor - art);
-        require(wad > 0, "DssLitePsm/nothing-to-chug");
-        daiJoin.join(vow, wad);
-
-        emit Chug(wad);
     }
 }

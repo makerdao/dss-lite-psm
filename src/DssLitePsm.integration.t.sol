@@ -499,7 +499,7 @@ contract DssLitePsmTest is DssTest {
         uint256 pusdcBalanceKeg = usdc.balanceOf(address(keg));
         uint256 pusdcBalanceThis = usdc.balanceOf(address(this));
 
-        uint256 pcut = _fullCut();
+        uint256 pcut = litePsm.cut();
         assertEq(pcut, _fee(tin, gemAmt), "sellGem: invalid fees after initial swap");
         // The Dai balance of the PSM after the first sell should be the same as the swapped amount.
         assertEq(pdaiBalancePsm, 10_000_000 * WAD - daiWadOut, "sellGem: invalid cash after initial swap");
@@ -508,7 +508,7 @@ contract DssLitePsmTest is DssTest {
         emit BuyGem(address(this), gemAmt / 2, _fee(tout, gemAmt / 2));
         uint256 daiInWad = litePsm.buyGem(address(this), gemAmt / 2);
 
-        assertEq(_fullCut(), pcut + _fee(tout, gemAmt / 2), "sellGem: invalid cut change");
+        assertEq(litePsm.cut(), pcut + _fee(tout, gemAmt / 2), "sellGem: invalid cut change");
 
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalancePsm, 10_000_000 * WAD - daiWadOut + daiInWad, "sellGem: invalid cash change");
@@ -535,7 +535,7 @@ contract DssLitePsmTest is DssTest {
         uint256 pvowDai = dss.vat.dai(address(dss.vow));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
         uint256 usdcBalanceKeg = usdc.balanceOf(address(keg));
-        uint256 cut = _fullCut();
+        uint256 cut = litePsm.cut();
 
         vm.expectEmit(false, false, false, true);
         emit Chug(cut);
@@ -578,18 +578,19 @@ contract DssLitePsmTest is DssTest {
         litePsm.fill();
 
         litePsm.sellGem(address(this), _wadToAmt(10_000_000 * WAD));
-        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid cut after 1st sellGem");
+        assertEq(litePsm.cut(), 100_000 * WAD, "chug: invalid cut after 1st sellGem");
 
         litePsm.file("tin", 0);
         // Leave the PSM without enough balance to redeem the whole amount of fees
         litePsm.sellGem(address(this), _wadToAmt(40_000 * WAD));
 
         // Still the cut didn't change, however now is partially in USDC
-        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid cut after 2nd sellGem");
+        assertEq(litePsm.cut(), 60_000 * WAD, "chug: invalid cut after 2nd sellGem");
+        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid fullCut after 2nd sellGem");
 
         assertEq(litePsm.chug(), 60_000 * WAD, "chug: invalid chugged amount on 1st chug");
-
-        assertEq(_fullCut(), 40_000 * WAD, "chug: invalid cut after 1st chug");
+        assertEq(litePsm.cut(), 0, "chug: invalid cut after 2nd sellGem");
+        assertEq(_fullCut(), 40_000 * WAD, "chug: invalid fullCut after 1st chug");
     }
 
     function testChug_Revert_WhenNoDaiBalance() public {
@@ -597,14 +598,16 @@ contract DssLitePsmTest is DssTest {
         litePsm.fill();
 
         litePsm.sellGem(address(this), _wadToAmt(10_000_000 * WAD));
-        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid cut after 1st sellGem");
+        assertEq(litePsm.cut(), 100_000 * WAD, "chug: invalid cut after 1st sellGem");
+        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid fullCut after 1st sellGem");
 
         litePsm.file("tin", 0);
         // Leave the PSM without any Dai balance
         litePsm.sellGem(address(this), _wadToAmt(100_000 * WAD));
 
         // Still the cut didn't change, however now is pure USDC
-        assertEq(_fullCut(), 100_000 * WAD);
+        assertEq(litePsm.cut(), 0, "chug: invalid cut after 2nd sellGem");
+        assertEq(_fullCut(), 100_000 * WAD, "chug: invalid fullCut after 2nd sellGem");
 
         // Then chug will revert
         vm.expectRevert("DssLitePsm/nothing-to-chug");
