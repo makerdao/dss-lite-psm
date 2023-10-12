@@ -48,6 +48,7 @@ contract DssLitePsmTest is DssTest {
     address immutable chainlog = vm.envAddress("CHANGELOG");
 
     DssInstance dss;
+    AutoLineLike autoLine;
     GemLike usdc;
     DssKeg keg;
     Harness__DssLitePsm litePsm;
@@ -56,8 +57,10 @@ contract DssLitePsmTest is DssTest {
     function setUp() public {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(chainlog);
-
         MCD.giveAdminAccess(dss);
+
+        autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
+        GodMode.setWard(address(autoLine), address(this), 1);
 
         usdc = GemLike(dss.chainlog.getAddress("USDC"));
 
@@ -675,9 +678,6 @@ contract DssLitePsmTest is DssTest {
     //////////////////////////////////*/
 
     function testFillVsAutoLine_Reproduce() public {
-        AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
-        GodMode.setWard(address(autoLine), address(this), 1);
-
         uint256 maxLine = 50_000_000 * RAD;
         uint256 gap = 1_000_000 * RAD;
         uint256 ttl = 1 hours;
