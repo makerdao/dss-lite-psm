@@ -68,9 +68,9 @@ contract DssLitePsm {
     /// @dev This contract should be able freely transfer `gem` on behalf of `keg`.
     address public immutable keg;
 
-    /// @notice Addresses with admin access on this contract. `wards[usr]`
+    /// @notice Addresses with admin access on this contract. `wards[usr]`.
     mapping(address => uint256) public wards;
-    /// @notice Addresses with permission to swap with no fees. `bud[usr]`
+    /// @notice Addresses with permission to swap with no fees. `bud[usr]`.
     mapping(address => uint256) public bud;
     /// @notice Maker Protocol balance sheet.
     address public vow;
@@ -340,7 +340,7 @@ contract DssLitePsm {
         }
 
         gem.transferFrom(msg.sender, keg, gemAmt);
-        // This can consume the whole balance including system fees not withdrawn
+        // This can consume the whole balance including system fees not withdrawn.
         dai.transfer(usr, daiOutWad);
 
         emit SellGem(usr, gemAmt, fee);
@@ -457,7 +457,7 @@ contract DssLitePsm {
 
         wad = _min(
             _min(
-                // To avoid two extra SLOADs it assumes urn.art == ilk.Art
+                // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
                 _subcap(tArt, Art),
                 _subcap(line / RAY, Art)
             ),
