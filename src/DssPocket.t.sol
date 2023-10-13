@@ -16,7 +16,7 @@
 pragma solidity 0.8.16;
 
 import {DssTest} from "dss-test/DssTest.sol";
-import {DssKeg} from "./DssKeg.sol";
+import {DssPocket} from "./DssPocket.sol";
 
 interface ChainlogLike {
     function getAddress(bytes32 key) external view returns (address);
@@ -26,11 +26,11 @@ interface GemLike {
     function allowance(address owner, address spender) external view returns (uint256);
 }
 
-contract DssKegTest is DssTest {
+contract DssPocketTest is DssTest {
     ChainlogLike immutable chainlog = ChainlogLike(vm.envAddress("CHANGELOG"));
 
     address mgr = address(0x1337);
-    DssKeg keg;
+    DssPocket pocket;
     GemLike usdc;
 
     function setUp() public {
@@ -39,8 +39,8 @@ contract DssKegTest is DssTest {
     }
 
     function testGiveInfiniteApprovalForGemOnConstructor() public {
-        keg = new DssKeg(mgr, address(usdc));
+        pocket = new DssPocket(mgr, address(usdc));
 
-        assertEq(usdc.allowance(address(keg), mgr), type(uint256).max, "Infinite approval was not set on constructor");
+        assertEq(usdc.allowance(address(pocket), mgr), type(uint256).max, "Infinite approval was not set on constructor");
     }
 }

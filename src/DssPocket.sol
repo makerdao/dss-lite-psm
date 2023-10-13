@@ -24,7 +24,7 @@ interface GemLike {
  * @notice Holds `gem` on behalf of `mgr`.
  * @dev Gives infinite `gem` approval to `mgr`.
  */
-contract DssKeg {
+contract DssPocket {
     /// @notice The allowed `gem` spender.
     address public immutable mgr;
 

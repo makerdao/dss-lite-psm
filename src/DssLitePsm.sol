@@ -44,12 +44,12 @@ interface DaiJoinLike {
  * @title A lightweight PSM implementation.
  * @notice Swaps Dai for `gem` at a 1:1 exchange rate.
  * @notice Fees `tin` and `tout` might apply.
- * @dev `gem` balance is kept in `keg` instead of this contract.
+ * @dev `gem` balance is kept in `pocket` instead of this contract.
  * @dev A few assumptions are made:
  *      1. There are no other urns for the same `ilk`
  *      2. Stability fee is always zero for the `ilk`
  *      3. The `spot` price for gem is always 1.
- *      4. This contract can freely transfer `gem` on behalf of `keg`.
+ *      4. This contract can freely transfer `gem` on behalf of `pocket`.
  */
 contract DssLitePsm {
     /// @notice Collateral type identifier.
@@ -65,8 +65,8 @@ contract DssLitePsm {
     /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
     uint256 internal immutable to18ConversionFactor;
     /// @notice The ultimate holder of the gems.
-    /// @dev This contract should be able freely transfer `gem` on behalf of `keg`.
-    address public immutable keg;
+    /// @dev This contract should be able freely transfer `gem` on behalf of `pocket`.
+    address public immutable pocket;
 
     /// @notice Addresses with admin access on this contract. `wards[usr]`.
     mapping(address => uint256) public wards;
@@ -167,15 +167,15 @@ contract DssLitePsm {
      * @param ilk_ The collateral type identifier.
      * @param gem_ The gem to exchange with Dai.
      * @param daiJoin_ The Dai adapter.
-     * @param keg_ The ultimate holder of `gem`.
+     * @param pocket_ The ultimate holder of `gem`.
      */
-    constructor(bytes32 ilk_, address gem_, address daiJoin_, address keg_) {
+    constructor(bytes32 ilk_, address gem_, address daiJoin_, address pocket_) {
         ilk = ilk_;
         gem = GemLike(gem_);
         daiJoin = DaiJoinLike(daiJoin_);
         vat = VatLike(daiJoin.vat());
         dai = GemLike(daiJoin.dai());
-        keg = keg_;
+        pocket = pocket_;
 
         to18ConversionFactor = 10 ** (18 - gem.decimals());
 
@@ -339,7 +339,7 @@ contract DssLitePsm {
             }
         }
 
-        gem.transferFrom(msg.sender, keg, gemAmt);
+        gem.transferFrom(msg.sender, pocket, gemAmt);
         // This can consume the whole balance including system fees not withdrawn.
         dai.transfer(usr, daiOutWad);
 
@@ -384,7 +384,7 @@ contract DssLitePsm {
         }
 
         dai.transferFrom(msg.sender, address(this), daiInWad);
-        gem.transferFrom(keg, usr, gemAmt);
+        gem.transferFrom(pocket, usr, gemAmt);
 
         emit BuyGem(usr, gemAmt, fee);
     }
@@ -453,7 +453,7 @@ contract DssLitePsm {
     function rush() public view returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        uint256 tArt = gem.balanceOf(pocket) * to18ConversionFactor + buf;
 
         wad = _min(
             _min(
@@ -472,7 +472,7 @@ contract DssLitePsm {
     function gush() public view returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
-        uint256 tArt = gem.balanceOf(keg) * to18ConversionFactor + buf;
+        uint256 tArt = gem.balanceOf(pocket) * to18ConversionFactor + buf;
 
         wad = _min(
             _max(
@@ -500,6 +500,6 @@ contract DssLitePsm {
         (, uint256 art) = vat.urns(ilk, address(this));
         uint256 cash = dai.balanceOf(address(this));
 
-        wad = _min(cash, cash + gem.balanceOf(keg) * to18ConversionFactor - art);
+        wad = _min(cash, cash + gem.balanceOf(pocket) * to18ConversionFactor - art);
     }
 }

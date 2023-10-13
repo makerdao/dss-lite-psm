@@ -48,8 +48,8 @@ counterparties.
 
 Last, but not least, in this version `gem` balance **can** be held in a different address to allow the protocol to
 receive yield from stablecoins that require the custody of the assets to be segregated. This address can be either an
-orphaned EOA or an instance of [`DssKeg`][keg] &ndash; an airtight container for `gem` &ndash; a novel smart contract.
-The only constraint is that `DssLitePsm` **should** be able to freely move any amount of `gem` on behalf of such address.
+orphaned EOA or an instance of [`DssPocket`][pocket] &ndash; a container for `gem` &ndash; a novel smart contract.  The
+only constraint is that `DssLitePsm` **should** be able to freely move any amount of `gem` on behalf of such address.
 
 ## Architecture
 
@@ -67,11 +67,11 @@ A simplified diagram of the `DssLitePsm` architecture:
       │                                 │  │
       │ approve ·····╮                  │  │
       │              ╎                  │  │
- ╭────┴────╮         ╎          ╭───────┴──▼───╮
- │         │         ╎          │              │     buyGem /
- │   Keg   │         ╰·········>│  DssLitePsm  ◄────────────────────  🧑
- │         │                    │              │     sellGem         User
- ╰─────────╯                    ╰─┬──┬──┬──▲───╯
+╭─────┴────╮         ╎          ╭───────┴──▼───╮
+│          │         ╎          │              │     buyGem /
+│  Pocket  │         ╰·········>│  DssLitePsm  ◄────────────────────  🧑
+│          │                    │              │     sellGem         User
+╰──────────╯                    ╰─┬──┬──┬──▲───╯
                                   │  │  │  │
                                   │  │  │  │
               slip / frob         │  │  │  │
@@ -147,5 +147,5 @@ TODO.
 
 [psm]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
 [psm-v2]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
-[keg]: ./src/DssKeg.sol
+[pocket]: ./src/DssPocket.sol
 [auto-line]: https://etherscan.io/address/0xc7bdd1f2b16447dcf3de045c4a039a60ec2f0ba3
