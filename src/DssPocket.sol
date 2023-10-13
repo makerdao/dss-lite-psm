@@ -25,20 +25,86 @@ interface GemLike {
  * @dev Gives infinite `gem` approval to `mgr`.
  */
 contract DssPocket {
-    /// @notice The allowed `gem` spender.
-    address public immutable mgr;
-
     /// @notice The token to be held in this contract.
     GemLike public immutable gem;
 
+    /// @notice Addresses with admin access on this contract. `wards[usr]`.
+    mapping(address => uint256) public wards;
+
     /**
-     * @param mgr_ The allowed `gem` spender.
+     * @notice `usr` was granted admin access.
+     * @param usr The user address.
+     */
+    event Rely(address indexed usr);
+    /**
+     * @notice `usr` admin access was revoked.
+     * @param usr The user address.
+     */
+    event Deny(address indexed usr);
+    /**
+     * @notice `who` was granted permission to swap without any fees.
+     * @param who The user address.
+     */
+    event Hope(address indexed who);
+    /**
+     * @notice Permission revoked for `who` to swap without any fees.
+     * @param who The user address.
+     */
+    event Nope(address indexed who);
+
+
+    modifier auth() {
+        require(wards[msg.sender] == 1, "DssPocket/not-authorized");
+        _;
+    }
+
+    /**
      * @param gem_ The token to be held in this contract.
      */
-    constructor(address mgr_, address gem_) {
-        mgr = mgr_;
+    constructor(address gem_) {
         gem = GemLike(gem_);
+        wards[msg.sender] = 1;
 
-        gem.approve(mgr_, type(uint256).max);
+        emit Rely(msg.sender);
+    }
+
+    /*//////////////////////////////////
+               Administration
+    //////////////////////////////////*/
+
+    /**
+     * @notice Grants `usr` admin access to this contract.
+     * @param usr The user address.
+     */
+    function rely(address usr) external auth {
+        wards[usr] = 1;
+        emit Rely(usr);
+    }
+
+    /**
+     * @notice Revokes `usr` admin access from this contract.
+     * @param usr The user address.
+     */
+    function deny(address usr) external auth {
+        wards[usr] = 0;
+        emit Deny(usr);
+    }
+
+    /**
+     * @notice Grants `who` permission to spend `gem` on behalf of this contract.
+     * @param who The user address.
+     */
+    function hope(address who) public auth {
+        gem.approve(who, type(uint256).max);
+        emit Hope(who);
+    }
+
+    /**
+     * @notice Revokes `who` permission to spend `gem` on behalf of this contract.
+     * @param who The user address.
+     */
+    function nope(address who) public auth {
+        gem.approve(who, 0);
+        emit Nope(who);
     }
 }

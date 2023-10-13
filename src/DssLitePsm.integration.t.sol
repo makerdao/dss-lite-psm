@@ -34,7 +34,9 @@ interface AutoLineLike {
 }
 
 contract Harness__DssLitePsm is DssLitePsm {
-    constructor(bytes32 ilk_, address gem_, address daiJoin_, address pocket_) DssLitePsm(ilk_, gem_, daiJoin_, pocket_) {}
+    constructor(bytes32 ilk_, address gem_, address daiJoin_, address pocket_)
+        DssLitePsm(ilk_, gem_, daiJoin_, pocket_)
+    {}
 
     function __to18ConversionFactor() external view returns (uint256) {
         return to18ConversionFactor;
@@ -67,14 +69,9 @@ abstract contract DssLitePsmBaseTest is DssTest {
         ilk = _ilk();
         gem = GemLike(_setUpGem());
 
-        // There is a circular dependency between `LitePsm` and `Pocket`, so we need to pre-compute
-        // their addresses to be able to provide all constructor parameters.
-        uint256 nonce = vm.getNonce(address(this));
-        address pocketAddr = computeCreateAddress(address(this), nonce);
-        address litePsmAddr = computeCreateAddress(address(this), nonce + 1);
-
-        pocket = new DssPocket(litePsmAddr, address(gem));
-        litePsm = new Harness__DssLitePsm(ilk, address(gem), address(dss.daiJoin), pocketAddr);
+        pocket = new DssPocket(address(gem));
+        litePsm = new Harness__DssLitePsm(ilk, address(gem), address(dss.daiJoin), address(pocket));
+        pocket.hope(address(litePsm));
 
         MCD.initIlk(dss, ilk);
         uint256 dline = 100_000_000 * RAD;
@@ -123,7 +120,6 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
     function testSetUpContractDependencies() public {
         assertEq(address(pocket.gem()), address(litePsm.gem()), "sanity check: mismatching gem");
-        assertEq(pocket.mgr(), address(litePsm), "sanity check: bad pocket.mgr()");
         assertEq(litePsm.pocket(), address(pocket), "sanity check: bad lightPsm.pocket()");
     }
 
@@ -643,7 +639,9 @@ abstract contract DssLitePsmBaseTest is DssTest {
             usdcBalanceThis, pusdcBalanceThis - gemAmt, "no fees: invalid address(this) USDC balance after sellGemNoFee"
         );
         uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalancePocket, pusdcBalancePocket + gemAmt, "no fees: invalid pocket USDC balance after sellGemNoFee");
+        assertEq(
+            usdcBalancePocket, pusdcBalancePocket + gemAmt, "no fees: invalid pocket USDC balance after sellGemNoFee"
+        );
 
         // Buy gems
 
@@ -664,7 +662,9 @@ abstract contract DssLitePsmBaseTest is DssTest {
             usdcBalanceThis, pusdcBalanceThis + gemAmt, "no fees: invalid address(this) USDC balance after buyGemNoFee"
         );
         usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalancePocket, pusdcBalancePocket - gemAmt, "no fees: invalid pocket USDC balance after buyGemNoFee");
+        assertEq(
+            usdcBalancePocket, pusdcBalancePocket - gemAmt, "no fees: invalid pocket USDC balance after buyGemNoFee"
+        );
     }
 
     /*//////////////////////////////////

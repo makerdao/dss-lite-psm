@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity 0.8.16;
 
-import {DssTest} from "dss-test/DssTest.sol";
+import "dss-test/DssTest.sol";
 import {DssPocket} from "./DssPocket.sol";
 
 interface ChainlogLike {
@@ -36,11 +36,24 @@ contract DssPocketTest is DssTest {
     function setUp() public {
         vm.createSelectFork("mainnet");
         usdc = GemLike(chainlog.getAddress("USDC"));
+        pocket = new DssPocket(address(usdc));
     }
 
-    function testGiveInfiniteApprovalForGemOnConstructor() public {
-        pocket = new DssPocket(mgr, address(usdc));
+    function testAuth() public {
+        checkAuth(address(pocket), "DssPocket");
+    }
 
-        assertEq(usdc.allowance(address(pocket), mgr), type(uint256).max, "Infinite approval was not set on constructor");
+    function testAuthMethods() public {
+        // Revoke ward role for this contract
+        GodMode.setWard(address(pocket), address(this), 0);
+        checkModifier(address(pocket), "DssPocket/not-authorized", [DssPocket.hope.selector, DssPocket.nope.selector]);
+    }
+
+    function testApprovalForGemOnHopeNope() public {
+        pocket.hope(mgr);
+        assertEq(usdc.allowance(address(pocket), mgr), type(uint256).max, "Infinite approval was not given");
+
+        pocket.nope(mgr);
+        assertEq(usdc.allowance(address(pocket), mgr), 0, "Approval was not revoked");
     }
 }
