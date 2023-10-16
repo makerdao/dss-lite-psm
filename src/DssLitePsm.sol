@@ -74,15 +74,16 @@ contract DssLitePsm {
     mapping(address => uint256) public bud;
     /// @notice Maker Protocol balance sheet.
     address public vow;
-    /// @notice Fee for selling gems.
-    /// @dev `wad` precision. 1 * WAD means a 100% fee.
-    uint256 public tin;
-    /// @notice Fee for buying gems.
-    /// @dev `wad` precision. 1 * WAD means a 100% fee.
-    uint256 public tout;
     /// @notice Buffer for pre-minted Dai.
     /// @dev `wad` precision.
     uint256 public buf;
+
+    /// @notice Fee factor for selling gems.
+    /// @dev `wad` precision. 0 means an 100% fee, while 1 * WAD means a 0% fee.
+    uint256 internal ffin;
+    /// @notice Fee factor for buying gems.
+    /// @dev `wad` precision. 1 * WAD means a 0% fee, while 2 * WAD means an 100% fee.
+    uint256 internal ffout;
 
     /// @dev `wad` precision.
     uint256 internal constant WAD = 10 ** 18;
@@ -126,15 +127,15 @@ contract DssLitePsm {
     /**
      * @notice A user sold `gem` for Dai.
      * @param owner The address receiving Dai.
-     * @param value The amount of `gem` sold.
-     * @param fee The fee paid by the user.
+     * @param value The amount of `gem` sold. [`gem` precision].
+     * @param fee The fee in Dai paid by the user. [`wad`].
      */
     event SellGem(address indexed owner, uint256 value, uint256 fee);
     /**
      * @notice A user bought `gem` with Dai.
      * @param owner The address receiving `gem`.
-     * @param value The amount of `gem` bought.
-     * @param fee The fee paid by the user.
+     * @param value The amount of `gem` bought. [`gem` precision].
+     * @param fee The fee in Dai paid by the user. [`wad`].
      */
     event BuyGem(address indexed owner, uint256 value, uint256 fee);
     /**
@@ -176,6 +177,10 @@ contract DssLitePsm {
         vat = VatLike(daiJoin.vat());
         dai = GemLike(daiJoin.dai());
         pocket = pocket_;
+
+        // Initial fees are set to 0%
+        ffin = WAD;
+        ffout = WAD;
 
         to18ConversionFactor = 10 ** (18 - gem.decimals());
 
@@ -282,10 +287,14 @@ contract DssLitePsm {
     function file(bytes32 what, uint256 data) external auth {
         if (what == "tin") {
             require(data <= WAD, "DssLitePsm/out-of-range");
-            tin = data;
+            unchecked {
+                ffin = WAD - data;
+            }
         } else if (what == "tout") {
             require(data <= WAD, "DssLitePsm/out-of-range");
-            tout = data;
+            unchecked {
+                ffout = WAD + data;
+            }
         } else if (what == "buf") {
             buf = data;
         } else {
@@ -306,7 +315,7 @@ contract DssLitePsm {
      * @return daiOutWad The amount of Dai bought.
      */
     function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
-        daiOutWad = _sellGem(usr, gemAmt, tin);
+        daiOutWad = _sellGem(usr, gemAmt, ffin);
     }
 
     /**
@@ -317,33 +326,25 @@ contract DssLitePsm {
      * @return daiOutWad The amount of Dai bought.
      */
     function sellGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiOutWad) {
-        daiOutWad = _sellGem(usr, gemAmt, 0);
+        daiOutWad = _sellGem(usr, gemAmt, WAD);
     }
 
     /**
      * @notice Function that swaps `gem` into Dai.
      * @param usr The destination of the bought Dai.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
-     * @param tin_ The fee rate applicable to the swap [`1 * WAD` = 100%].
+     * @param ffin_ The fee rate applicable to the swap [`1 * WAD` = 100%].
      * @return daiOutWad The amount of Dai bought.
      */
-    function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 daiOutWad) {
-        uint256 fee;
-
-        daiOutWad = gemAmt * to18ConversionFactor;
-        if (tin_ > 0) {
-            fee = daiOutWad * tin_ / WAD;
-            // Since `tin_` is bounded to WAD, this can never underflow.
-            unchecked {
-                daiOutWad -= fee;
-            }
-        }
+    function _sellGem(address usr, uint256 gemAmt, uint256 ffin_) internal returns (uint256 daiOutWad) {
+        uint256 gemWad = gemAmt * to18ConversionFactor;
+        daiOutWad = gemWad * ffin_ / WAD;
 
         gem.transferFrom(msg.sender, pocket, gemAmt);
         // This can consume the whole balance including system fees not withdrawn.
         dai.transfer(usr, daiOutWad);
 
-        emit SellGem(usr, gemAmt, fee);
+        emit SellGem(usr, gemAmt, gemWad - daiOutWad);
     }
 
     /**
@@ -353,7 +354,7 @@ contract DssLitePsm {
      * @return daiInWad The amount of Dai required to sell.
      */
     function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
-        daiInWad = _buyGem(usr, gemAmt, tout);
+        daiInWad = _buyGem(usr, gemAmt, ffout);
     }
 
     /**
@@ -364,29 +365,24 @@ contract DssLitePsm {
      * @return daiInWad The amount of Dai required to sell.
      */
     function buyGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiInWad) {
-        daiInWad = _buyGem(usr, gemAmt, 0);
+        daiInWad = _buyGem(usr, gemAmt, WAD);
     }
 
     /**
      * @notice Function that swaps Dai into `gem`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
-     * @param tout_ The fee rate applicable to the swap [`1 * WAD` = 100%].
+     * @param ffout_ The fee rate applicable to the swap [`1 * WAD` = 100%].
      * @return daiInWad The amount of Dai required to sell.
      */
-    function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 daiInWad) {
-        uint256 fee;
-        daiInWad = gemAmt * to18ConversionFactor;
-
-        if (tout_ > 0) {
-            fee = daiInWad * tout_ / WAD;
-            daiInWad += fee;
-        }
+    function _buyGem(address usr, uint256 gemAmt, uint256 ffout_) internal returns (uint256 daiInWad) {
+        uint256 gemWad = gemAmt * to18ConversionFactor;
+        daiInWad = gemWad * ffout_ / WAD;
 
         dai.transferFrom(msg.sender, address(this), daiInWad);
         gem.transferFrom(pocket, usr, gemAmt);
 
-        emit BuyGem(usr, gemAmt, fee);
+        emit BuyGem(usr, gemAmt, daiInWad - gemWad);
     }
 
     /*//////////////////////////////////
@@ -445,6 +441,18 @@ contract DssLitePsm {
     /*//////////////////////////////////
                   Getters
     //////////////////////////////////*/
+
+    /// @notice Returns the toll (% in fees) for selling gems.
+    /// @dev 1 * WAD means an 100% toll.
+    function tin() external view returns (uint256) {
+        return WAD - ffin;
+    }
+
+    /// @notice Returns the toll (% in fees) for buying gems.
+    /// @dev 1 * WAD means an 100% toll.
+    function tout() public view returns (uint256) {
+        return ffout - WAD;
+    }
 
     /**
      * @notice Returns the missing Dai that can be filled into this contract.
