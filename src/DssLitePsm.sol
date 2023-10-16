@@ -333,7 +333,7 @@ contract DssLitePsm {
      * @notice Function that swaps `gem` into Dai.
      * @param usr The destination of the bought Dai.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
-     * @param ffin_ The fee rate applicable to the swap [`1 * WAD` = 100%].
+     * @param ffin_ The fee factor applicable to the swap [`1 * WAD` = 0%, `0` = 100%].
      * @return daiOutWad The amount of Dai bought.
      */
     function _sellGem(address usr, uint256 gemAmt, uint256 ffin_) internal returns (uint256 daiOutWad) {
@@ -372,7 +372,7 @@ contract DssLitePsm {
      * @notice Function that swaps Dai into `gem`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
-     * @param ffout_ The fee rate applicable to the swap [`1 * WAD` = 100%].
+     * @param ffout_ The fee factor applicable to the swap [`1 * WAD` = 0%, `2 * WAD` = 100%].
      * @return daiInWad The amount of Dai required to sell.
      */
     function _buyGem(address usr, uint256 gemAmt, uint256 ffout_) internal returns (uint256 daiInWad) {
