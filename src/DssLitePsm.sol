@@ -126,15 +126,15 @@ contract DssLitePsm {
     /**
      * @notice A user sold `gem` for Dai.
      * @param owner The address receiving Dai.
-     * @param value The amount of `gem` sold.
-     * @param fee The fee paid by the user.
+     * @param value The amount of `gem` sold. [`gem` precision].
+     * @param fee The fee in Dai paid by the user. [`wad`].
      */
     event SellGem(address indexed owner, uint256 value, uint256 fee);
     /**
      * @notice A user bought `gem` with Dai.
      * @param owner The address receiving `gem`.
-     * @param value The amount of `gem` bought.
-     * @param fee The fee paid by the user.
+     * @param value The amount of `gem` bought. [`gem` precision].
+     * @param fee The fee in Dai paid by the user. [`wad`].
      */
     event BuyGem(address indexed owner, uint256 value, uint256 fee);
     /**
