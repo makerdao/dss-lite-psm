@@ -172,6 +172,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     //////////////////////////////////*/
 
     function testSellGem() public {
+        (, uint256 tout) = _setupFees(0, 0);
         litePsm.fill();
 
         uint256 gemAmt = _wadToAmt(50_000 * WAD);
@@ -184,7 +185,40 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 pusdcBalanceThis = gem.balanceOf(address(this));
 
         vm.expectEmit(true, true, true, true);
-        emit SellGem(address(this), gemAmt, 0);
+        emit SellGem(address(this), gemAmt, _fee(tout, gemAmt));
+        uint256 daiOutWad = litePsm.sellGem(address(this), gemAmt);
+
+        uint256 daiTotalSupply = dss.dai.totalSupply();
+        // Dai total supply should not be affected.
+        assertEq(daiTotalSupply, pdaiTotalSupply, "sellGem: Dai total supply changed unexpectedly");
+
+        // Available Dai liquidity should reduce by the same amount being swapped.
+        uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
+        assertEq(daiBalancePsm, pdaiBalancePsm - daiOutWad, "sellGem: invalid PSM Dai change");
+        uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
+        assertEq(daiBalanceThis, pdaiBalanceThis + daiOutWad, "sellGem: invalid address(this) Dai balance change");
+
+        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(usdcBalancePocket, pusdcBalancePocket + gemAmt, "sellGem: invalid pocket USDC balance change");
+        uint256 usdcBalanceThis = gem.balanceOf(address(this));
+        assertEq(usdcBalanceThis, pusdcBalanceThis - gemAmt, "sellGem: invalid address(this) USDC balance change");
+    }
+
+    function testSellGem_WhenFeeIsNotZero() public {
+        (, uint256 tout) = _setupFees(0.01 ether, 0.01 ether);
+        litePsm.fill();
+
+        uint256 gemAmt = _wadToAmt(50_000 * WAD);
+        uint256 pdaiTotalSupply = dss.dai.totalSupply();
+        uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
+        assertEq(pdaiBalancePsm, 10_000_000 * WAD, "sellGem: invalid cash after fill");
+
+        uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
+        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
+
+        vm.expectEmit(true, true, true, true);
+        emit SellGem(address(this), gemAmt, _fee(tout, gemAmt));
         uint256 daiOutWad = litePsm.sellGem(address(this), gemAmt);
 
         uint256 daiTotalSupply = dss.dai.totalSupply();
@@ -244,6 +278,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     }
 
     function testBuyGem() public {
+        (uint256 tin,) = _setupFees(0, 0);
         litePsm.fill();
 
         uint256 igemAmt = _wadToAmt(10_000_000 * WAD);
@@ -257,7 +292,36 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
         uint256 gemAmt = _wadToAmt(3_000_000 * WAD);
         vm.expectEmit(true, true, true, true);
-        emit BuyGem(usr, gemAmt, 0);
+        emit BuyGem(usr, gemAmt, _fee(tin, gemAmt));
+        uint256 daiInWad = litePsm.buyGem(usr, gemAmt);
+
+        uint256 usdcBalanceUsr = gem.balanceOf(usr);
+        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(usdcBalanceUsr, pusdcBalanceUsr + gemAmt, "buyGem: invalid usr USDC balance after buyGem");
+        assertEq(usdcBalancePocket, pusdcBalancePocket - gemAmt, "buyGem: invalid pocket USDC balance after buyGem");
+
+        uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
+        uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
+        assertEq(daiBalanceThis, pdaiBalanceThis - daiInWad, "buyGem: invalid address(this) Dai balance after buyGem");
+        assertEq(daiBalancePsm, pdaiBalancePsm + daiInWad, "buyGem: invalid cash after buyGem");
+    }
+
+    function testBuyGem_WhenFeeIsNotZero() public {
+        (uint256 tin,) = _setupFees(0.01 ether, 0.01 ether);
+        litePsm.fill();
+
+        uint256 igemAmt = _wadToAmt(10_000_000 * WAD);
+        litePsm.sellGem(address(0x1337), igemAmt);
+
+        address usr = address(0xd34d);
+        uint256 pusdcBalanceUsr = gem.balanceOf(usr);
+        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
+        uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
+
+        uint256 gemAmt = _wadToAmt(3_000_000 * WAD);
+        vm.expectEmit(true, true, true, true);
+        emit BuyGem(usr, gemAmt, _fee(tin, gemAmt));
         uint256 daiInWad = litePsm.buyGem(usr, gemAmt);
 
         uint256 usdcBalanceUsr = gem.balanceOf(usr);
