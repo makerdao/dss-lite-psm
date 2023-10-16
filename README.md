@@ -27,8 +27,8 @@ Lightweight Peg Stability Module (PSM) implementation.
 A Peg Stability Module (PSM) is a facility through which users can freely swap Dai for stablecoins with no slippage.
 MakerDAO Governance can enable swap fees, though, which are computed as revenue for the protocol.
 
-This module is heavily inspired by the [current PSM][psm], [PSM v2][psm-v2] and some other PSM prototypes
-within MakerDAO repositories.
+This module is heavily inspired by the [current PSM][psm], [PSM v2][psm-v2] and some other PSM prototypes within
+MakerDAO repositories.
 
 The issue with those implementations is that swapping through them can be quite gas intensive, because they manipulate
 the `Vat` (MakerDAO's main accounting module) directly on every swap.

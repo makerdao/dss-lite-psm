@@ -125,14 +125,14 @@ contract DssLitePsm {
     event File(bytes32 indexed what, uint256 data);
     /**
      * @notice A user sold `gem` for Dai.
-     * @param owner The user address.
+     * @param owner The address receiving Dai.
      * @param value The amount of `gem` sold.
      * @param fee The fee paid by the user.
      */
     event SellGem(address indexed owner, uint256 value, uint256 fee);
     /**
      * @notice A user bought `gem` with Dai.
-     * @param owner The user address.
+     * @param owner The address receiving `gem`.
      * @param value The amount of `gem` bought.
      * @param fee The fee paid by the user.
      */
@@ -190,7 +190,7 @@ contract DssLitePsm {
                     Math
     //////////////////////////////////*/
 
-    ///@dev Safely converts uint256 to int256. Reverts if it overflows.
+    ///@dev Safely converts `uint256` to `int256`. Reverts if it overflows.
     function _int256(uint256 x) internal pure returns (int256 y) {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
     }

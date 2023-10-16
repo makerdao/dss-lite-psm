@@ -71,6 +71,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
         pocket = new DssPocket(address(gem));
         litePsm = new Harness__DssLitePsm(ilk, address(gem), address(dss.daiJoin), address(pocket));
+        // Allow litePsm to spend `gem` on behalf of `pocket`.
         pocket.hope(address(litePsm));
 
         MCD.initIlk(dss, ilk);
