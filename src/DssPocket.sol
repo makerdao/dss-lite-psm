@@ -20,9 +20,9 @@ interface GemLike {
 }
 
 /**
- * @title An airtight container for gems
- * @notice Holds `gem` on behalf of `mgr`.
- * @dev Gives infinite `gem` approval to `mgr`.
+ * @title A container for gems.
+ * @notice Holds `gem` on behalf of other addresses.
+ * @dev Can grant or revoke infinite `gem` approvals.
  */
 contract DssPocket {
     /// @notice The token to be held in this contract.
@@ -42,12 +42,12 @@ contract DssPocket {
      */
     event Deny(address indexed usr);
     /**
-     * @notice `who` was granted permission to swap without any fees.
+     * @notice `who` was granted permission to spend gems.
      * @param who The user address.
      */
     event Hope(address indexed who);
     /**
-     * @notice Permission revoked for `who` to swap without any fees.
+     * @notice `who`'s permission to spend gems was revoked.
      * @param who The user address.
      */
     event Nope(address indexed who);
