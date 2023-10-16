@@ -328,9 +328,8 @@ contract DssLitePsm {
      * @return daiOutWad The amount of Dai bought.
      */
     function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 daiOutWad) {
-        uint256 fee;
-
         daiOutWad = gemAmt * to18ConversionFactor;
+        uint256 fee;
         if (tin_ > 0) {
             fee = daiOutWad * tin_ / WAD;
             // Since `tin_` is bounded to WAD, this can never underflow.
@@ -375,9 +374,8 @@ contract DssLitePsm {
      * @return daiInWad The amount of Dai required to sell.
      */
     function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 daiInWad) {
-        uint256 fee;
         daiInWad = gemAmt * to18ConversionFactor;
-
+        uint256 fee;
         if (tout_ > 0) {
             fee = daiInWad * tout_ / WAD;
             daiInWad += fee;
