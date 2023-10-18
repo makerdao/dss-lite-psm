@@ -424,11 +424,13 @@ contract DssLitePsm {
      * @return wad The amount added to the surplus buffer.
      */
     function chug() external returns (uint256 wad) {
-        require(vow != address(0), "DssLitePsm/chug-missing-vow");
+        address vow_ = vow;
+        require(vow_ != address(0), "DssLitePsm/chug-missing-vow");
+
         wad = cut();
         require(wad > 0, "DssLitePsm/nothing-to-chug");
 
-        daiJoin.join(vow, wad);
+        daiJoin.join(vow_, wad);
 
         emit Chug(wad);
     }
