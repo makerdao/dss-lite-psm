@@ -392,10 +392,9 @@ contract DssLitePsm {
     function fill() external returns (uint256 wad) {
         wad = rush();
         require(wad > 0, "DssLitePsm/nothing-to-fill");
-        int256 swad = _int256(wad);
 
-        vat.slip(ilk, address(this), swad);
-        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
+        // The `urn` for this contract in the `Vat` is expected to have "unlimited" `ink`.
+        vat.frob(ilk, address(this), address(0), address(this), 0, _int256(wad));
         daiJoin.exit(address(this), wad);
 
         emit Fill(wad);
@@ -410,11 +409,10 @@ contract DssLitePsm {
     function trim() external returns (uint256 wad) {
         wad = gush();
         require(wad > 0, "DssLitePsm/nothing-to-trim");
-        int256 swad = -_int256(wad);
 
         daiJoin.join(address(this), wad);
-        vat.frob(ilk, address(this), address(this), address(this), swad, swad);
-        vat.slip(ilk, address(this), swad);
+        // The `urn` for this contract in the `Vat` is expected to have "unlimited" `ink`.
+        vat.frob(ilk, address(this), address(0), address(this), 0, -_int256(wad));
 
         emit Trim(wad);
     }

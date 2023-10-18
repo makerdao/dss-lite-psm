@@ -77,8 +77,9 @@ abstract contract DssLitePsmBaseTest is DssTest {
         dss.vat.file("Line", dss.vat.Line() + dline);
         dss.vat.file(ilk, "line", dline);
 
-        // Authorizes the new LitePsm on the Vat
-        GodMode.setWard(dss.vat, address(litePsm), 1);
+        // Grants 1T virtual gem collateral
+        dss.vat.slip(ilk, address(litePsm), _int256(1_000_000_000_000 * WAD));
+        dss.vat.grab(ilk, address(litePsm), address(litePsm), address(0), _int256(1_000_000_000_000 * WAD), 0);
 
         // Mints 100_000_000 gem into the test contract.
         GodMode.setBalance(address(gem), address(this), _wadToAmt(100_000_000 * WAD));
