@@ -82,7 +82,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         // Authorizes the new LitePsm on the Vat
         GodMode.setWard(dss.vat, address(litePsm), 1);
 
-        // Mints 100_000_000 USDC into the test contract.
+        // Mints 100_000_000 gem into the test contract.
         GodMode.setBalance(address(gem), address(this), _wadToAmt(100_000_000 * WAD));
         gem.approve(address(litePsm), type(uint256).max);
 
@@ -90,7 +90,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         GodMode.setBalance(dss.dai, address(this), 100_000_000 * WAD);
         dss.dai.approve(address(litePsm), type(uint256).max);
 
-        // pocket to give unlimited USDC approval to the litePsm.
+        // pocket to give unlimited gem approval to the litePsm.
         vm.prank(address(pocket));
         gem.approve(address(litePsm), type(uint256).max);
 
@@ -180,8 +180,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
         assertEq(pdaiBalancePsm, 10_000_000 * WAD, "sellGem: invalid cash after fill");
 
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
-        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceThis = gem.balanceOf(address(this));
 
         vm.expectEmit(true, true, true, true);
         emit SellGem(address(this), gemAmt, 0);
@@ -197,10 +197,10 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         assertEq(daiBalanceThis, pdaiBalanceThis + daiOutWad, "sellGem: invalid address(this) Dai balance change");
 
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalancePocket, pusdcBalancePocket + gemAmt, "sellGem: invalid pocket USDC balance change");
-        uint256 usdcBalanceThis = gem.balanceOf(address(this));
-        assertEq(usdcBalanceThis, pusdcBalanceThis - gemAmt, "sellGem: invalid address(this) USDC balance change");
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalancePocket, pgemBalancePocket + gemAmt, "sellGem: invalid pocket gem balance change");
+        uint256 gemBalanceThis = gem.balanceOf(address(this));
+        assertEq(gemBalanceThis, pgemBalanceThis - gemAmt, "sellGem: invalid address(this) gem balance change");
     }
 
     function testSellGem_Fuzz_Bounded(uint256 igemAmt, uint256 gemAmt) public {
@@ -213,8 +213,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 pdaiTotalSupply = dss.dai.totalSupply();
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
-        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceThis = gem.balanceOf(address(this));
 
         gemAmt = bound(gemAmt, _wadToAmt(1 * WAD), igemAmt);
         vm.expectEmit(true, true, true, true);
@@ -232,10 +232,10 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         assertEq(daiBalanceThis, pdaiBalanceThis + daiOutWad, "sellGem: invalid address(this) Dai balance change");
 
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalancePocket, pusdcBalancePocket + gemAmt, "sellGem: invalid pocket USDC balance change");
-        uint256 usdcBalanceThis = gem.balanceOf(address(this));
-        assertEq(usdcBalanceThis, pusdcBalanceThis - gemAmt, "sellGem: invalid address(this) USDC balance change");
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalancePocket, pgemBalancePocket + gemAmt, "sellGem: invalid pocket gem balance change");
+        uint256 gemBalanceThis = gem.balanceOf(address(this));
+        assertEq(gemBalanceThis, pgemBalanceThis - gemAmt, "sellGem: invalid address(this) gem balance change");
 
         vm.expectEmit(true, true, true, true);
         // The unbalancing amounts to the sum of swaps.
@@ -250,8 +250,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
         litePsm.sellGem(address(0x1337), igemAmt);
 
         address usr = address(0xd34d);
-        uint256 pusdcBalanceUsr = gem.balanceOf(usr);
-        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceUsr = gem.balanceOf(usr);
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
 
@@ -260,10 +260,10 @@ abstract contract DssLitePsmBaseTest is DssTest {
         emit BuyGem(usr, gemAmt, 0);
         uint256 daiInWad = litePsm.buyGem(usr, gemAmt);
 
-        uint256 usdcBalanceUsr = gem.balanceOf(usr);
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalanceUsr, pusdcBalanceUsr + gemAmt, "buyGem: invalid usr USDC balance after buyGem");
-        assertEq(usdcBalancePocket, pusdcBalancePocket - gemAmt, "buyGem: invalid pocket USDC balance after buyGem");
+        uint256 gemBalanceUsr = gem.balanceOf(usr);
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalanceUsr, pgemBalanceUsr + gemAmt, "buyGem: invalid usr gem balance after buyGem");
+        assertEq(gemBalancePocket, pgemBalancePocket - gemAmt, "buyGem: invalid pocket gem balance after buyGem");
 
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
@@ -278,8 +278,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
         litePsm.sellGem(address(0x1337), igemAmt);
 
         address usr = address(0xd34d);
-        uint256 pusdcBalanceUsr = gem.balanceOf(usr);
-        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceUsr = gem.balanceOf(usr);
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
 
@@ -288,10 +288,10 @@ abstract contract DssLitePsmBaseTest is DssTest {
         emit BuyGem(usr, gemAmt, 0);
         uint256 daiInWad = litePsm.buyGem(usr, gemAmt);
 
-        uint256 usdcBalanceUsr = gem.balanceOf(usr);
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalanceUsr, pusdcBalanceUsr + gemAmt, "buyGem: invalid usr USDC balance after buyGem");
-        assertEq(usdcBalancePocket, pusdcBalancePocket - gemAmt, "buyGem: invalid pocket USDC balance after buyGem");
+        uint256 gemBalanceUsr = gem.balanceOf(usr);
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalanceUsr, pgemBalanceUsr + gemAmt, "buyGem: invalid usr gem balance after buyGem");
+        assertEq(gemBalancePocket, pgemBalancePocket - gemAmt, "buyGem: invalid pocket gem balance after buyGem");
 
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
@@ -490,8 +490,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
-        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceThis = gem.balanceOf(address(this));
 
         uint256 pcut = litePsm.cut();
         assertEq(pcut, _fee(tin, gemAmt), "sellGem: invalid fees after initial swap");
@@ -507,14 +507,14 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalancePsm, 10_000_000 * WAD - daiWadOut + daiInWad, "sellGem: invalid cash change");
 
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(usdcBalancePocket, pusdcBalancePocket - gemAmt / 2, "sellGem: invalid pocket USDC balance change");
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalancePocket, pgemBalancePocket - gemAmt / 2, "sellGem: invalid pocket gem balance change");
 
         uint256 daiBalanceThis = dss.dai.balanceOf(address(this));
         assertEq(daiBalanceThis, pdaiBalanceThis - daiInWad, "sellGem: invalid address(this) Dai balance change");
 
-        uint256 usdcBalanceThis = gem.balanceOf(address(this));
-        assertEq(usdcBalanceThis, pusdcBalanceThis + gemAmt / 2, "sellGem: invalid address(this) USDC balance change");
+        uint256 gemBalanceThis = gem.balanceOf(address(this));
+        assertEq(gemBalanceThis, pgemBalanceThis + gemAmt / 2, "sellGem: invalid address(this) gem balance change");
     }
 
     function testChug_Fuzz_Bounded(uint256 gemAmt, uint256 tin_, uint256 tout_) public {
@@ -528,7 +528,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
         uint256 pvowDai = dss.vat.dai(address(dss.vow));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
         uint256 cut = litePsm.cut();
 
         vm.expectEmit(false, false, false, true);
@@ -541,7 +541,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         assertEq(vowDai, pvowDai + cut * RAY, "chug: invalid vat.dai(vow) change after chug");
         assertEq(daiBalancePsm, pdaiBalancePsm - cut, "chug: invalid dai.balanceOf(litePsm) change after chug");
         assertEq(
-            daiBalancePsm + usdcBalancePocket * litePsm.__to18ConversionFactor() - 10_000_000 * WAD,
+            daiBalancePsm + gemBalancePocket * litePsm.__to18ConversionFactor() - 10_000_000 * WAD,
             0,
             "chug: invalid cut after chug"
         );
@@ -578,7 +578,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         // Leave the PSM without enough balance to redeem the whole amount of fees
         litePsm.sellGem(address(this), _wadToAmt(40_000 * WAD));
 
-        // Still the cut didn't change, however now is partially in USDC
+        // Still the cut didn't change, however now is partially in gem
         assertEq(litePsm.cut(), 60_000 * WAD, "chug: invalid cut after 2nd sellGem");
         assertEq(_fullCut(), 100_000 * WAD, "chug: invalid fullCut after 2nd sellGem");
 
@@ -599,7 +599,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         // Leave the PSM without any Dai balance
         litePsm.sellGem(address(this), _wadToAmt(100_000 * WAD));
 
-        // Still the cut didn't change, however now is pure USDC
+        // Still the cut didn't change, however now is pure gem
         assertEq(litePsm.cut(), 0, "chug: invalid cut after 2nd sellGem");
         assertEq(_fullCut(), 100_000 * WAD, "chug: invalid fullCut after 2nd sellGem");
 
@@ -621,8 +621,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 gemAmt = _wadToAmt(gemAmtWad);
 
         uint256 pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        uint256 pusdcBalanceThis = gem.balanceOf(address(this));
-        uint256 pusdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceThis = gem.balanceOf(address(this));
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
 
         // Sell gems
 
@@ -635,20 +635,20 @@ abstract contract DssLitePsmBaseTest is DssTest {
             daiBalanceThis, pdaiBalanceThis + daiWadOut, "no fees: invalid address(this) Dai balance after sellGemNoFee"
         );
 
-        uint256 usdcBalanceThis = gem.balanceOf(address(this));
+        uint256 gemBalanceThis = gem.balanceOf(address(this));
         assertEq(
-            usdcBalanceThis, pusdcBalanceThis - gemAmt, "no fees: invalid address(this) USDC balance after sellGemNoFee"
+            gemBalanceThis, pgemBalanceThis - gemAmt, "no fees: invalid address(this) gem balance after sellGemNoFee"
         );
-        uint256 usdcBalancePocket = gem.balanceOf(address(pocket));
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
         assertEq(
-            usdcBalancePocket, pusdcBalancePocket + gemAmt, "no fees: invalid pocket USDC balance after sellGemNoFee"
+            gemBalancePocket, pgemBalancePocket + gemAmt, "no fees: invalid pocket gem balance after sellGemNoFee"
         );
 
         // Buy gems
 
         pdaiBalanceThis = dss.dai.balanceOf(address(this));
-        pusdcBalancePocket = gem.balanceOf(address(pocket));
-        pusdcBalanceThis = gem.balanceOf(address(this));
+        pgemBalancePocket = gem.balanceOf(address(pocket));
+        pgemBalanceThis = gem.balanceOf(address(this));
 
         uint256 daiWadIn = litePsm.buyGemNoFee(address(this), gemAmt);
         assertEq(daiWadIn, gemAmtWad, "no fees: unexpected fee on buyGem");
@@ -658,13 +658,13 @@ abstract contract DssLitePsmBaseTest is DssTest {
             daiBalanceThis, pdaiBalanceThis - daiWadIn, "no fees: invalid address(this) Dai balance after buyGemNoFee"
         );
 
-        usdcBalanceThis = gem.balanceOf(address(this));
+        gemBalanceThis = gem.balanceOf(address(this));
         assertEq(
-            usdcBalanceThis, pusdcBalanceThis + gemAmt, "no fees: invalid address(this) USDC balance after buyGemNoFee"
+            gemBalanceThis, pgemBalanceThis + gemAmt, "no fees: invalid address(this) gem balance after buyGemNoFee"
         );
-        usdcBalancePocket = gem.balanceOf(address(pocket));
+        gemBalancePocket = gem.balanceOf(address(pocket));
         assertEq(
-            usdcBalancePocket, pusdcBalancePocket - gemAmt, "no fees: invalid pocket USDC balance after buyGemNoFee"
+            gemBalancePocket, pgemBalancePocket - gemAmt, "no fees: invalid pocket gem balance after buyGemNoFee"
         );
     }
 
@@ -1054,77 +1054,10 @@ contract DssLitePsmUsdcTest is DssLitePsmBaseTest {
                                       USDP
 //////////////////////////////////////////////////////////////////////////////*/
 
-contract DssLitePsmUsdpTest is DssLitePsmBaseTest {
-    function _ilk() internal pure override returns (bytes32) {
-        return "LITE_PSM_PAXUSD_A";
-    }
-
-    function _setUpGem() internal override returns (address) {
-        address _gem = dss.chainlog.getAddress("PAXUSD");
-        // Mints 100_000_000 gem into the test contract.
-        GodMode.setBalance(_gem, address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
-        vm.label(_gem, "PAXUSD");
-
-        return _gem;
-    }
-
-    function testBuyGem_Revert_WhenPocketHasNoGem() public {
-        assertEq(gem.balanceOf(address(pocket)), 0, "buyGem: initial pocket gem balance not zero");
-
-        // Error from the USDP implementation on Mainnet
-        vm.expectRevert("insufficient funds");
-        litePsm.buyGem(address(this), 1);
-    }
-}
+// USDP is not supported because it is an upgradeable contract.
 
 /*//////////////////////////////////////////////////////////////////////////////
                                       GUSD
 //////////////////////////////////////////////////////////////////////////////*/
 
-interface ERC20Proxy {
-    function erc20Impl() external returns (address);
-
-    function totalSupply() external returns (uint256);
-}
-
-interface ERC20Impl {
-    function erc20Store() external returns (address);
-}
-
-interface ERC20Store {
-    function setTotalSupply(uint256 _newTotalSupply) external;
-
-    function setBalance(address _owner, uint256 _newBalance) external;
-}
-
-contract DssLitePsmGusdTest is DssLitePsmBaseTest {
-    function _ilk() internal pure override returns (bytes32) {
-        return "LITE_PSM_GUSD_A";
-    }
-
-    function _setUpGem() internal override returns (address) {
-        address _gem = dss.chainlog.getAddress("GUSD");
-        vm.label(_gem, "GUSD");
-
-        // Add GUSD blance
-        address impl = ERC20Proxy(address(_gem)).erc20Impl();
-        ERC20Store store = ERC20Store(ERC20Impl(impl).erc20Store());
-
-        vm.startPrank(impl);
-
-        store.setBalance(address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
-        store.setTotalSupply(ERC20Proxy(_gem).totalSupply() + 100_000_000 * (10 ** GemLike(_gem).decimals()));
-
-        vm.stopPrank();
-
-        return _gem;
-    }
-
-    function testBuyGem_Revert_WhenPocketHasNoGem() public {
-        assertEq(gem.balanceOf(address(pocket)), 0, "buyGem: initial pocket gem balance not zero");
-
-        // No error msg from the GUSD implementation on Mainnet
-        vm.expectRevert();
-        litePsm.buyGem(address(this), 1);
-    }
-}
+// GUSD is not supported because it is an upgradeable contract.

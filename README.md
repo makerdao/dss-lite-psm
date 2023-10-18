@@ -12,7 +12,9 @@ Lightweight Peg Stability Module (PSM) implementation.
   - [Design and Constraints](#design-and-constraints)
   - [Known Limitations](#known-limitations)
     - [1. Potential Front-Running](#1-potential-front-running)
-    - [2. Emergency Shutdown](#2-emergency-shutdown)
+    - [2. No Slippage Protection](#2-no-slippage-protection)
+    - [3. No Support for Upgradeable Gems](#3-no-support-for-upgradeable-gems)
+    - [4. Emergency Shutdown](#4-emergency-shutdown)
 - [Contributing](#contributing)
 
 <!-- vim-markdown-toc -->
@@ -34,8 +36,7 @@ The issue with those implementations is that swapping through them can be quite 
 the `Vat` (MakerDAO's main accounting module) directly on every swap.
 
 To help alleviate this problem, `DssLitePsm` aims to be more gas efficient. The strategy is to allow users to swap in a
-**pool** of pre-minted Dai and stablecoins, reducing the base case of a swap to 2 ERC-20 token transfers with little
-overhead.
+**pool** of pre-minted Dai and stablecoins, reducing the swap to 2 ERC-20 token transfers with little overhead.
 
 The required bookkeeping is done _off-band_ (not to be confused with _off-chain_), through a set of permissionless
 functions that aim to keep the pool operating under the predefined constraints, and incorporate the accumulated swap
@@ -137,9 +138,30 @@ by the debt ceiling, while the amount of `Dai` will tend to gravitate towards `b
 The consequence is that anyone willing to call `sellGem` with a value larger than `buf` should take care of potential
 front-running transactions by bundling it with an optional liquidity increase (`fill`).
 
-#### 2. Emergency Shutdown
+#### 2. No Slippage Protection
 
-`DssLitePsm` completely disregards Emergency Shutdown. This is intentional, as it complicates a lot the design.
+Swaps in `DssLitePsm` are generally not subject to slippage. The only exception is when there is a MakerDAO Governance
+proposal do increase the swapping fees `tin` and `tout`. That is done through an Executive Spell, which is an on-chain
+smart contract that can be permissionlessly _cast_ (executed) after following the Governance process.
+
+If Alice sends a swap transaction and a spell increasing the fees is cast before her transaction, she will either pay
+more Dai when buying gems or receive less Dai when selling gems than the originally expected.
+
+This is a highly unlikely scenario, but users or aggregators are able to handle this issue through a wrapper contract.
+
+#### 3. No Support for Upgradeable Gems
+
+We no longer have a dedicated `GemJoin` contract to normalize different token implementations. For instance, we lost the
+capacity to identify upgrades in upgradeable tokens when compared to the previous iteration of the [PSM][gem-join-8].
+
+On the other hand, non-upgradeable gems that [do not return `true` on `transfer`/`transferFrom`][weird-erc20] were not
+previously supported, but we removed such restriction in this iteration.
+
+
+#### 4. Emergency Shutdown
+
+`DssLitePsm` assumes the ESM threshold is set large enough prior to its deployment, so Emergency Shutdown can never be
+called.
 
 ## Contributing
 
@@ -149,3 +171,5 @@ TODO.
 [psm-v2]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
 [pocket]: ./src/DssPocket.sol
 [auto-line]: https://etherscan.io/address/0xc7bdd1f2b16447dcf3de045c4a039a60ec2f0ba3
+[gem-join-8]: https://github.com/makerdao/dss-psm/blob/master/src/join-8-auth.sol#L36
+[weird-erc20]: https://github.com/d-xo/weird-erc20/#missing-return-values
