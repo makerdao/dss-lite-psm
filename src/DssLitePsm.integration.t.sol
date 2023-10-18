@@ -22,14 +22,12 @@ import {DssLitePsm} from "src/DssLitePsm.sol";
 interface GemLike {
     function approve(address spender, uint256 value) external;
     function transfer(address to, uint256 value) external returns (bool);
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
     function balanceOf(address owner) external view returns (uint256);
     function decimals() external view returns (uint8);
 }
 
 interface AutoLineLike {
     function exec(bytes32 _ilk) external returns (uint256);
-    function ilks(bytes32) external view returns (uint256 line, uint256 gap, uint48 ttl, uint48 last, uint48 lastInc);
     function setIlk(bytes32 ilk, uint256 line, uint256 gap, uint256 ttl) external;
 }
 
@@ -140,9 +138,11 @@ abstract contract DssLitePsmBaseTest is DssTest {
         );
     }
 
-    function testOnlyBudMethods() public {
+    function testTollMethods() public {
         checkModifier(
-            address(litePsm), "DssLitePsm/not-bud", [DssLitePsm.buyGemNoFee.selector, DssLitePsm.sellGemNoFee.selector]
+            address(litePsm),
+            "DssLitePsm/not-whitelisted",
+            [DssLitePsm.buyGemNoFee.selector, DssLitePsm.sellGemNoFee.selector]
         );
     }
 
@@ -528,7 +528,6 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
         uint256 pvowDai = dss.vat.dai(address(dss.vow));
         uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
-        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
         uint256 cut = litePsm.cut();
 
         vm.expectEmit(false, false, false, true);
@@ -540,11 +539,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
         assertEq(vowDai, pvowDai + cut * RAY, "chug: invalid vat.dai(vow) change after chug");
         assertEq(daiBalancePsm, pdaiBalancePsm - cut, "chug: invalid dai.balanceOf(litePsm) change after chug");
-        assertEq(
-            daiBalancePsm + gemBalancePocket * litePsm.__to18ConversionFactor() - 10_000_000 * WAD,
-            0,
-            "chug: invalid cut after chug"
-        );
+        assertEq(litePsm.cut(), 0, "chug: invalid cut after chug");
     }
 
     function testChug_Revert_WhenVowIsAddressZero() public {
@@ -640,9 +635,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
             gemBalanceThis, pgemBalanceThis - gemAmt, "no fees: invalid address(this) gem balance after sellGemNoFee"
         );
         uint256 gemBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(
-            gemBalancePocket, pgemBalancePocket + gemAmt, "no fees: invalid pocket gem balance after sellGemNoFee"
-        );
+        assertEq(gemBalancePocket, pgemBalancePocket + gemAmt, "no fees: invalid pocket gem balance after sellGemNoFee");
 
         // Buy gems
 
@@ -663,9 +656,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
             gemBalanceThis, pgemBalanceThis + gemAmt, "no fees: invalid address(this) gem balance after buyGemNoFee"
         );
         gemBalancePocket = gem.balanceOf(address(pocket));
-        assertEq(
-            gemBalancePocket, pgemBalancePocket - gemAmt, "no fees: invalid pocket gem balance after buyGemNoFee"
-        );
+        assertEq(gemBalancePocket, pgemBalancePocket - gemAmt, "no fees: invalid pocket gem balance after buyGemNoFee");
     }
 
     /*//////////////////////////////////

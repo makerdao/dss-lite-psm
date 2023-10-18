@@ -16,7 +16,7 @@
 pragma solidity ^0.8.16;
 
 interface GemLike {
-    function approve(address spender, uint256 value) external;
+    function approve(address, uint256) external;
 }
 
 /**
@@ -42,15 +42,15 @@ contract DssPocket {
      */
     event Deny(address indexed usr);
     /**
-     * @notice `who` was granted permission to spend gems.
-     * @param who The user address.
+     * @notice `usr` was granted permission to spend gems.
+     * @param usr The user address.
      */
-    event Hope(address indexed who);
+    event Hope(address indexed usr);
     /**
-     * @notice `who`'s permission to spend gems was revoked.
-     * @param who The user address.
+     * @notice `usr`'s permission to spend gems was revoked.
+     * @param usr The user address.
      */
-    event Nope(address indexed who);
+    event Nope(address indexed usr);
 
 
     modifier auth() {
@@ -63,8 +63,8 @@ contract DssPocket {
      */
     constructor(address gem_) {
         gem = GemLike(gem_);
-        wards[msg.sender] = 1;
 
+        wards[msg.sender] = 1;
         emit Rely(msg.sender);
     }
 
@@ -91,20 +91,20 @@ contract DssPocket {
     }
 
     /**
-     * @notice Grants `who` permission to spend `gem` on behalf of this contract.
-     * @param who The user address.
+     * @notice Grants `usr` permission to spend `gem` on behalf of this contract.
+     * @param usr The user address.
      */
-    function hope(address who) public auth {
-        gem.approve(who, type(uint256).max);
-        emit Hope(who);
+    function hope(address usr) external auth {
+        gem.approve(usr, type(uint256).max);
+        emit Hope(usr);
     }
 
     /**
-     * @notice Revokes `who` permission to spend `gem` on behalf of this contract.
-     * @param who The user address.
+     * @notice Revokes `usr` permission to spend `gem` on behalf of this contract.
+     * @param usr The user address.
      */
-    function nope(address who) public auth {
-        gem.approve(who, 0);
-        emit Nope(who);
+    function nope(address usr) external auth {
+        gem.approve(usr, 0);
+        emit Nope(usr);
     }
 }

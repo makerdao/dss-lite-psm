@@ -65,7 +65,7 @@ contract DssLitePsm {
     /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
     uint256 internal immutable to18ConversionFactor;
     /// @notice The ultimate holder of the gems.
-    /// @dev This contract should be able freely transfer `gem` on behalf of `pocket`.
+    /// @dev This contract should be able to freely transfer `gem` on behalf of `pocket`.
     address public immutable pocket;
 
     /// @notice Addresses with admin access on this contract. `wards[usr]`.
@@ -104,15 +104,15 @@ contract DssLitePsm {
      */
     event Deny(address indexed usr);
     /**
-     * @notice `who` was granted permission to swap without any fees.
-     * @param who The user address.
+     * @notice `usr` was granted permission to swap without any fees.
+     * @param usr The user address.
      */
-    event Kiss(address indexed who);
+    event Kiss(address indexed usr);
     /**
-     * @notice Permission revoked for `who` to swap without any fees.
-     * @param who The user address.
+     * @notice Permission revoked for `usr` to swap without any fees.
+     * @param usr The user address.
      */
-    event Diss(address indexed who);
+    event Diss(address indexed usr);
     /**
      * @notice A contract parameter was updated.
      * @param what The changed parameter name. ["vow"].
@@ -161,7 +161,7 @@ contract DssLitePsm {
     }
 
     modifier toll() {
-        require(bud[msg.sender] == 1, "DssLitePsm/not-bud");
+        require(bud[msg.sender] == 1, "DssLitePsm/not-whitelisted");
         _;
     }
 
@@ -245,21 +245,21 @@ contract DssLitePsm {
     }
 
     /**
-     * @notice Grants `who` permission to swap without any fees.
-     * @param who The user address.
+     * @notice Grants `usr` permission to swap without any fees.
+     * @param usr The user address.
      */
-    function kiss(address who) public auth {
-        bud[who] = 1;
-        emit Kiss(who);
+    function kiss(address usr) external auth {
+        bud[usr] = 1;
+        emit Kiss(usr);
     }
 
     /**
-     * @notice Revokes `who` permission to swap without any fees.
-     * @param who The user address.
+     * @notice Revokes `usr` permission to swap without any fees.
+     * @param usr The user address.
      */
-    function diss(address who) public auth {
-        bud[who] = 0;
-        emit Diss(who);
+    function diss(address usr) external auth {
+        bud[usr] = 0;
+        emit Diss(usr);
     }
 
     /**
@@ -284,10 +284,10 @@ contract DssLitePsm {
      */
     function file(bytes32 what, uint256 data) external auth {
         if (what == "tin") {
-            require(data <= WAD, "DssLitePsm/out-of-range");
+            require(data <= WAD, "DssLitePsm/tin-out-of-range");
             tin = data;
         } else if (what == "tout") {
-            require(data <= WAD, "DssLitePsm/out-of-range");
+            require(data <= WAD, "DssLitePsm/tout-out-of-range");
             tout = data;
         } else if (what == "buf") {
             buf = data;
@@ -324,7 +324,7 @@ contract DssLitePsm {
     }
 
     /**
-     * @notice Function that swaps `gem` into Dai.
+     * @notice Internal function that implements the logic to swaps `gem` into Dai.
      * @param usr The destination of the bought Dai.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
      * @param tin_ The fee rate applicable to the swap [`1 * WAD` = 100%].
@@ -370,7 +370,7 @@ contract DssLitePsm {
     }
 
     /**
-     * @notice Function that swaps Dai into `gem`.
+     * @notice Internal function implementing the logic that swaps Dai into `gem`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
      * @param tout_ The fee rate applicable to the swap [`1 * WAD` = 100%].
