@@ -152,10 +152,10 @@ abstract contract DssLitePsmBaseTest is DssTest {
         //////////////////////////////////*/
         assertEq(litePsm.wards(address(this)), 1, "Invalid ward setting");
 
-        vm.expectRevert("DssLitePsm/out-of-range");
+        vm.expectRevert("DssLitePsm/tin-out-of-range");
         litePsm.file("tin", 2 * WAD);
 
-        vm.expectRevert("DssLitePsm/out-of-range");
+        vm.expectRevert("DssLitePsm/tout-out-of-range");
         litePsm.file("tout", 2 * WAD);
 
         checkFileUint(address(litePsm), "DssLitePsm", ["tin", "tout", "buf"]);
