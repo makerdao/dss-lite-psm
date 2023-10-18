@@ -141,8 +141,8 @@ front-running transactions by bundling it with an optional liquidity increase (`
 #### 2. No Slippage Protection
 
 Swaps in `DssLitePsm` are generally not subject to slippage. The only exception is when there is a MakerDAO Governance
-proposal to increase the swapping fees `tin` and/or `tout`. That is done through an Executive Spell, which is an on-chain
-smart contract that can be permissionlessly _cast_ (executed) after following the Governance process.
+proposal to increase the swapping fees `tin` and/or `tout`. That is done through an Executive Spell, which is an
+on-chain smart contract that can be permissionlessly _cast_ (executed) after following the Governance process.
 
 If Alice sends a swap transaction and a spell increasing the fees is cast before her transaction, she will either pay
 more Dai when buying gems or receive less Dai when selling gems than the originally expected.
