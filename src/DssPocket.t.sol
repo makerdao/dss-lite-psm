@@ -27,7 +27,7 @@ interface GemLike {
 }
 
 contract DssPocketTest is DssTest {
-    ChainlogLike immutable chainlog = ChainlogLike(vm.envAddress("CHANGELOG"));
+    ChainlogLike constant chainlog = ChainlogLike(0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F);
 
     address mgr = address(0x1337);
     DssPocket pocket;
