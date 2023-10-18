@@ -15,6 +15,7 @@ Lightweight Peg Stability Module (PSM) implementation.
     - [2. No Slippage Protection](#2-no-slippage-protection)
     - [3. No Support for Upgradeable Gems](#3-no-support-for-upgradeable-gems)
     - [4. Emergency Shutdown](#4-emergency-shutdown)
+- [Contributing](#contributing)
 
 <!-- vim-markdown-toc -->
 
@@ -161,6 +162,27 @@ previously supported, but we removed such restriction in this iteration.
 
 `DssLitePsm` assumes the ESM threshold is set large enough prior to its deployment, so Emergency Shutdown can never be
 called.
+
+## Contributing
+
+To be able to run the integration tests, you need to set the `ETH_RPC_URL` env var to a valid Mainnet node:
+
+```bash
+ETH_RPC_URL='...' forge test -vvv
+```
+
+You can also use a `.env` file for that (see `.env.example`):
+
+```bash
+# .env
+ETH_RPC_URL='...'
+```
+
+Then simply run:
+```bash
+forge test -vvv
+```
+
 
 [psm]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
 [psm-v2]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
