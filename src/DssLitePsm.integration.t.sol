@@ -45,7 +45,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     function _ilk() internal view virtual returns (bytes32);
     function _setUpGem() internal virtual returns (address);
 
-    address immutable chainlog = vm.envAddress("CHANGELOG");
+    address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 ilk;
     DssInstance dss;
@@ -57,7 +57,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
     function setUp() public {
         vm.createSelectFork("mainnet");
-        dss = MCD.loadFromChainlog(chainlog);
+        dss = MCD.loadFromChainlog(CHANGELOG);
         MCD.giveAdminAccess(dss);
 
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));

@@ -9,8 +9,6 @@ on:
 
 env:
   FOUNDRY_PROFILE: ci
-  FOUNDRY_ROOT_CHAINID: 1
-  CHANGELOG: "0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F"
   ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
 
 jobs:
