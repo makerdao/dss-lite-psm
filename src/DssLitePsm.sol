@@ -90,8 +90,6 @@ contract DssLitePsm {
     uint256 internal constant RAY = 10 ** 27;
     /// @dev Workaround to explicitly revert with an arithmetic error.
     string internal constant ARITHMETIC_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x11));
-    /// @dev Workaround to explicitly revert with a division or module by zero error.
-    string internal constant DIVISION_OR_MODULE_BY_ZERO_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x12));
 
     /**
      * @notice `usr` was granted admin access.
@@ -205,14 +203,6 @@ contract DssLitePsm {
     ///@dev Returns the max between `x` and `y`.
     function _max(uint256 x, uint256 y) internal pure returns (uint256 z) {
         return x > y ? x : y;
-    }
-
-    ///@dev Returns the division between `x` and `y` (rounding up).
-    function _divup(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require(y != 0, DIVISION_OR_MODULE_BY_ZERO_ERROR);
-        unchecked {
-            z = x != 0 ? ((x - 1) / y) + 1 : 0;
-        }
     }
 
     ///@dev Returns the difference between `x` and `y` if `x > y` or zero otherwise.
@@ -477,12 +467,9 @@ contract DssLitePsm {
 
         wad = _min(
             _max(
-                _max(
-                    // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
-                    _subcap(Art, tArt),
-                    _subcap(Art, line / RAY)
-                ),
-                _divup(_subcap(vat.debt(), vat.Line()), RAY)
+                // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
+                _subcap(Art, tArt),
+                _subcap(Art, line / RAY)
             ),
             // Cannot burn more than the current balance.
             dai.balanceOf(address(this))
