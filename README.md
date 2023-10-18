@@ -157,7 +157,6 @@ capacity to identify upgrades in upgradeable tokens when compared to the previou
 On the other hand, non-upgradeable gems that [do not return `true` on `transfer`/`transferFrom`][weird-erc20] were not
 previously supported, but we removed such restriction in this iteration.
 
-
 #### 4. Emergency Shutdown
 
 `DssLitePsm` assumes the ESM threshold is set large enough prior to its deployment, so Emergency Shutdown can never be
