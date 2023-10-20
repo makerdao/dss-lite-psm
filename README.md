@@ -75,7 +75,7 @@ A simplified diagram of the `DssLitePsm` architecture:
 ╰──────────╯                    ╰─┬──┬──┬──▲───╯
                                   │  │  │  │
                                   │  │  │  │
-              slip / frob         │  │  │  │
+                 frob             │  │  │  │
      ╭────────────────────────────╯  │  │  │
      │                               │  │  │
      │                               │  │  │

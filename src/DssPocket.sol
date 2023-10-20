@@ -22,7 +22,7 @@ interface GemLike {
 /**
  * @title A container for gems.
  * @notice Holds `gem` on behalf of other addresses.
- * @dev Can grant or revoke infinite `gem` approvals.
+ * @dev Can grant or revoke `gem` approvals up to `type(uint256).max`.
  */
 contract DssPocket {
     /// @notice The token to be held in this contract.
@@ -51,7 +51,6 @@ contract DssPocket {
      * @param usr The user address.
      */
     event Nope(address indexed usr);
-
 
     modifier auth() {
         require(wards[msg.sender] == 1, "DssPocket/not-authorized");

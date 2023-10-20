@@ -388,8 +388,9 @@ contract DssLitePsm {
     //////////////////////////////////*/
 
     /**
-     * @notice Mints Dai into this contract up to buf value
-     * @dev The actual minted amount can be limited by the local and global debt ceilings.
+     * @notice Mints Dai into this contract.
+     * @dev Both `buf`, the local and global debt ceilings limit the actual minted amount.
+     *      Notice that `gem` donations or extraneous debt repayments can also affect the amount.
      * @return wad The amount of Dai minted.
      */
     function fill() external returns (uint256 wad) {
