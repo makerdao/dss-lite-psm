@@ -31,16 +31,6 @@ interface AutoLineLike {
     function setIlk(bytes32 ilk, uint256 line, uint256 gap, uint256 ttl) external;
 }
 
-contract Harness__DssLitePsm is DssLitePsm {
-    constructor(bytes32 ilk_, address gem_, address daiJoin_, address pocket_)
-        DssLitePsm(ilk_, gem_, daiJoin_, pocket_)
-    {}
-
-    function __to18ConversionFactor() external view returns (uint256) {
-        return to18ConversionFactor;
-    }
-}
-
 abstract contract DssLitePsmBaseTest is DssTest {
     function _ilk() internal view virtual returns (bytes32);
     function _setUpGem() internal virtual returns (address);
@@ -52,7 +42,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     AutoLineLike autoLine;
     GemLike gem;
     DssPocket pocket;
-    Harness__DssLitePsm litePsm;
+    DssLitePsm litePsm;
     uint256 buf;
 
     function setUp() public {
@@ -68,7 +58,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
         gem = GemLike(_setUpGem());
 
         pocket = new DssPocket(address(gem));
-        litePsm = new Harness__DssLitePsm(ilk, address(gem), address(dss.daiJoin), address(pocket));
+        litePsm = new DssLitePsm(ilk, address(gem), address(dss.daiJoin), address(pocket));
         // Allow litePsm to spend `gem` on behalf of `pocket`.
         pocket.hope(address(litePsm));
 
@@ -112,7 +102,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
     function testTo18ConversionFactor() public {
         assertEq(
-            litePsm.__to18ConversionFactor(),
+            litePsm.to18ConversionFactor(),
             10 ** (18 - gem.decimals()),
             "to18ConversionFactor: invalid conversion factor"
         );
@@ -924,7 +914,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     function _fullCut() internal view returns (uint256) {
         (, uint256 art) = dss.vat.urns(ilk, address(litePsm));
         uint256 daiBalance = dss.dai.balanceOf(address(litePsm));
-        uint256 gemBalanceWad = gem.balanceOf(litePsm.pocket()) * litePsm.__to18ConversionFactor();
+        uint256 gemBalanceWad = gem.balanceOf(litePsm.pocket()) * litePsm.to18ConversionFactor();
         return daiBalance + gemBalanceWad - art;
     }
 

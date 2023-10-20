@@ -63,7 +63,7 @@ contract DssLitePsm {
     /// @notice Gem to exchange with Dai.
     GemLike public immutable gem;
     /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
-    uint256 internal immutable to18ConversionFactor;
+    uint256 public immutable to18ConversionFactor;
     /// @notice The ultimate holder of the gems.
     /// @dev This contract should be able to freely transfer `gem` on behalf of `pocket`.
     address public immutable pocket;
