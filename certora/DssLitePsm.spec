@@ -943,6 +943,7 @@ rule trim_revert() {
     vatUrnInk, vatUrnArt = vat.urns(ilk, currentContract);
     mathint vatIlkArt; mathint vatIlkRate; mathint vatIlkSpot; mathint vatIlkLine; mathint vatIlkDust;
     vatIlkArt, vatIlkRate, vatIlkSpot, vatIlkLine, vatIlkDust = vat.ilks(ilk);
+    require vatIlkSpot == RAY(); // Fix 1:1 price to avoid timeout
     require vatUrnArt == vatIlkArt;
     require vatIlkDust == 0;
     require vatDebt >= vatIlkArt * RAY();
