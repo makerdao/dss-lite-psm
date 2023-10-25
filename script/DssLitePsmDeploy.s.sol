@@ -32,6 +32,7 @@ contract DssLitePsmDeployScript is Script {
     address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
     DssInstance dss = MCD.loadFromChainlog(CHANGELOG);
     address pauseProxy = dss.chainlog.getAddress("MCD_PAUSE_PROXY");
+    string ilkStr;
     bytes32 ilk;
     bytes32 gemId;
     address gem;
@@ -41,7 +42,8 @@ contract DssLitePsmDeployScript is Script {
     function run() external {
         config = ScriptTools.loadConfig();
 
-        ilk = config.readString(".ilk", "FOUNDRY_ILK").stringToBytes32();
+        ilkStr = config.readString(".ilk", "FOUNDRY_ILK");
+        ilk = ilkStr.stringToBytes32();
         gemId = config.readString(".gemId", "FOUNDRY_GEM_ID").stringToBytes32();
         gem = dss.chainlog.getAddress(gemId);
 
@@ -60,5 +62,6 @@ contract DssLitePsmDeployScript is Script {
         ScriptTools.exportContract(NAME, "litePsm", contracts.litePsm);
         ScriptTools.exportContract(NAME, "pocket", contracts.pocket);
         ScriptTools.exportContract(NAME, "gem", gem);
+        ScriptTools.exportValue(NAME, "ilk", ilkStr);
     }
 }
