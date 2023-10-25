@@ -18,7 +18,6 @@ pragma solidity ^0.8.16;
 import {ScriptTools} from "dss-test/ScriptTools.sol";
 import {DssLitePsm} from "../../src/DssLitePsm.sol";
 import {DssPocket} from "../../src/DssPocket.sol";
-import {DssLitePsmInstance} from "./DssLitePsmInstance.sol";
 
 struct DssLitePsmDeployParams {
     address deployer;
@@ -26,6 +25,11 @@ struct DssLitePsmDeployParams {
     bytes32 ilk;
     address gem;
     address daiJoin;
+}
+
+struct DssLitePsmInstance {
+    address litePsm;
+    address pocket;
 }
 
 library DssLitePsmDeploy {

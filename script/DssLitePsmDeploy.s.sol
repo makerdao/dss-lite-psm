@@ -19,8 +19,7 @@ import {Script} from "forge-std/Script.sol";
 import {stdJson} from "forge-std/StdJson.sol";
 import {MCD, DssInstance} from "dss-test/MCD.sol";
 import {ScriptTools} from "dss-test/ScriptTools.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams} from "./dependencies/DssLitePsmDeploy.sol";
-import {DssLitePsmInstance} from "./dependencies/DssLitePsmInstance.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "./dependencies/DssLitePsmDeploy.sol";
 
 contract DssLitePsmDeployScript is Script {
     using stdJson for string;
@@ -38,7 +37,6 @@ contract DssLitePsmDeployScript is Script {
     address gem;
     DssLitePsmInstance contracts;
 
-
     function run() external {
         config = ScriptTools.loadConfig();
 
@@ -49,13 +47,15 @@ contract DssLitePsmDeployScript is Script {
 
         vm.startBroadcast();
 
-        contracts = DssLitePsmDeploy.deploy(DssLitePsmDeployParams({
-            deployer: msg.sender,
-            owner: pauseProxy,
-            ilk: ilk,
-            gem: gem,
-            daiJoin: address(dss.daiJoin)
-        }));
+        contracts = DssLitePsmDeploy.deploy(
+            DssLitePsmDeployParams({
+                deployer: msg.sender,
+                owner: pauseProxy,
+                ilk: ilk,
+                gem: gem,
+                daiJoin: address(dss.daiJoin)
+            })
+        );
 
         vm.stopBroadcast();
 
