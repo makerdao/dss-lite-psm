@@ -39,8 +39,9 @@ contract DssLitePsmInitTest is DssTest {
     address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant ILK = "LITE-PSM-USDC-A";
-    bytes32 constant SRC_ILK = "PSM-USDC-A";
+    bytes32 constant PSM_KEY = "MCD_LITE_PSM_USDC_A";
     bytes32 constant GEM_KEY = "USDC";
+    bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
     address pause;
     ProxyLike pauseProxy;
@@ -70,6 +71,7 @@ contract DssLitePsmInitTest is DssTest {
 
         cfg = DssLitePsmInitConfig({
             srcPsm: dss.chainlog.getAddress(SRC_PSM_KEY),
+            chainlogKey: PSM_KEY,
             buf: 50_000_000 * WAD,
             tin: 0,
             tout: 0,
@@ -104,16 +106,22 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(pink, 0, "before: ink is not zero");
         }
 
-        // Source PSM is present on AutoLiine
+        // Source PSM is present in AutoLiine
         {
             (uint256 psrcMaxLine,,,,) = autoLine.ilks(SRC_ILK);
             assertGt(psrcMaxLine, 0, "before: src ilk not in AutoLine");
         }
 
-        // `litePsm` not present on AutoLine
+        // `litePsm` not present in AutoLine
         {
             (uint256 pmaxLine,,,,) = autoLine.ilks(ILK);
             assertEq(pmaxLine, 0, "before: ilk already in AutoLine");
+        }
+
+        // `litePsm` not present in Chainlog
+        {
+            vm.expectRevert("dss-chain-log/invalid-key");
+            dss.chainlog.getAddress(PSM_KEY);
         }
 
         // Simulate a spell casting
@@ -146,12 +154,17 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(srcMaxLine, 0, "after: src ilk not removed from AutoLine");
         }
 
-        // Source PSM is present on AutoLiine
+        // Source PSM is present in AutoLiine
         {
             (uint256 maxLine, uint256 gap, uint48 ttl,,) = autoLine.ilks(ILK);
             assertEq(maxLine, cfg.maxLine, "after: AutoLine invalid maxLine");
             assertEq(gap, cfg.gap, "after: AutoLine invalid gap");
             assertEq(ttl, uint48(cfg.ttl), "after: AutoLine invalid ttl");
+        }
+
+        // `litePsm` is present in Chainlog
+        {
+            assertEq(dss.chainlog.getAddress(PSM_KEY), inst.litePsm, "after: `litePsm` not in chainlog");
         }
     }
 }

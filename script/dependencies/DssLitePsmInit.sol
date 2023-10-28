@@ -20,6 +20,7 @@ import {DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
 
 struct DssLitePsmInitConfig {
     address srcPsm;
+    bytes32 chainlogKey;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -29,20 +30,20 @@ struct DssLitePsmInitConfig {
 }
 
 interface DssLitePsmLike {
-    function file(bytes32 what, uint256 data) external;
-    function fill() external returns (uint256 wad);
+    function file(bytes32, uint256) external;
+    function fill() external returns (uint256);
     function gem() external view returns (address);
     function ilk() external view returns (bytes32);
     function pocket() external view returns (address);
-    function rely(address usr) external;
-    function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad);
+    function rely(address) external;
+    function sellGem(address, uint256) external returns (uint256);
     function to18ConversionFactor() external view returns (uint256);
 }
 
 interface DssPocketLike {
     function gem() external view returns (address);
-    function hope(address usr) external;
-    function rely(address usr) external;
+    function hope(address) external;
+    function rely(address) external;
 }
 
 interface DssPsmLike {
@@ -51,22 +52,22 @@ interface DssPsmLike {
 }
 
 interface PipLike {
-    function poke(bytes32 wut) external;
+    function poke(bytes32) external;
 }
 
 interface GemJoinLike {
-    function exit(address guy, uint256 wad) external;
+    function exit(address, uint256) external;
     function gem() external view returns (address);
 }
 
 interface GemLike {
-    function approve(address spender, uint256 amt) external;
+    function approve(address, uint256) external;
 }
 
 interface AutoLineLike {
-    function exec(bytes32 _ilk) external returns (uint256);
-    function remIlk(bytes32 ilk) external;
-    function setIlk(bytes32 ilk, uint256 line, uint256 gap, uint256 ttl) external;
+    function exec(bytes32) external returns (uint256);
+    function remIlk(bytes32) external;
+    function setIlk(bytes32, uint256, uint256, uint256) external;
 }
 
 library DssLitePsmInit {
@@ -75,6 +76,11 @@ library DssLitePsmInit {
 
     uint256 internal constant WAD = 10 ** 18;
     uint256 internal constant RAY = 10 ** 27;
+
+    ///@dev Safely converts `uint256` to `int256`. Reverts if it overflows.
+    function _int256(uint256 x) internal pure returns (int256 y) {
+        require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
+    }
 
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
         // Sanity checks
@@ -185,10 +191,8 @@ library DssLitePsmInit {
         // 8. Grant permissions to ESM
         DssLitePsmLike(inst.litePsm).rely(address(dss.esm));
         DssPocketLike(inst.pocket).rely(address(dss.esm));
-    }
 
-    ///@dev Safely converts `uint256` to `int256`. Reverts if it overflows.
-    function _int256(uint256 x) internal pure returns (int256 y) {
-        require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
+        // 9. Add `litePsm` to the chainlog
+        dss.chainlog.setAddress(cfg.chainlogKey, inst.litePsm);
     }
 }
