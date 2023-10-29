@@ -1228,3 +1228,50 @@ rule cut_revert() {
     assert revert2 => lastReverted, "revert2 failed";
     assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
 }
+
+// Verify assets (dai + gem) is always greater or equal to the Art
+// This could be an invariant but is replaced with a rule for easier synthax
+rule assetsGreaterOrEqualArt(method f) {
+    env e;
+
+    bytes32 ilk = ilk();
+    address pocket = pocket();
+    mathint to18ConversionFactor = to18ConversionFactor();
+
+    mathint aBefore; mathint vatUrnPsmArtBefore;
+    aBefore, vatUrnPsmArtBefore = vat.urns(ilk, currentContract);
+
+    mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
+    mathint daiBalanceOfSenderBefore = dai.balanceOf(e.msg.sender);
+    
+    mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);  
+    mathint gemBalanceOfSenderBefore = gem.balanceOf(e.msg.sender);
+
+    mathint tinBefore = tin();
+    mathint toutBefore = tout();
+
+    require e.msg.sender != currentContract;
+    require e.msg.sender != pocket;
+
+    require daiBalanceOfSenderBefore + daiBalanceOfPsmBefore <= to_mathint(dai.totalSupply());
+    require gemBalanceOfSenderBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
+
+    require tinBefore <= WAD();
+    require toutBefore <= WAD();
+
+    // require invariant holds before
+    require daiBalanceOfPsmBefore + gemBalanceOfPocketBefore * to18ConversionFactor >= vatUrnPsmArtBefore;
+
+    calldataarg arg;
+    f(e, arg);
+
+    mathint aAfter; mathint vatUrnPsmArtAfter;
+    aAfter, vatUrnPsmArtAfter = vat.urns(ilk, currentContract);
+    mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
+    mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
+
+    // assert invariant holds after
+    assert daiBalanceOfPsmAfter + gemBalanceOfPocketAfter * to18ConversionFactor >= vatUrnPsmArtAfter;
+}
+
+
