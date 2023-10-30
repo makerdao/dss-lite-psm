@@ -42,6 +42,36 @@ definition min(mathint x, mathint y) returns mathint = x < y ? x : y;
 definition max(mathint x, mathint y) returns mathint = x > y ? x : y;
 definition subCap(mathint x, mathint y) returns mathint = x > y ? x - y : 0;
 
+rule storageAffected(method f) {
+    env e;
+
+    address anyAddr;
+
+    mathint wardsBefore = wards(anyAddr);
+    mathint budBefore = bud(anyAddr);
+    address vowBefore = vow();
+    mathint tinBefore = tin();
+    mathint toutBefore = tout();
+    mathint bufBefore = buf();
+
+    calldataarg args;
+    f(e, args);
+
+    mathint wardsAfter = wards(anyAddr);
+    mathint budAfter = bud(anyAddr);
+    address vowAfter = vow();
+    mathint tinAfter = tin();
+    mathint toutAfter = tout();
+    mathint bufAfter = buf();
+
+    assert wardsAfter != wardsBefore => f.selector == sig:rely(address).selector || f.selector == sig:deny(address).selector, "wards[x] changed in an unexpected function";
+    assert budAfter != budBefore => f.selector == sig:kiss(address).selector || f.selector == sig:diss(address).selector, "bud[x] changed in an unexpected function";
+    assert vowAfter != vowBefore => f.selector == sig:file(bytes32, address).selector, "vow changed in an unexpected function";
+    assert tinAfter != tinBefore => f.selector == sig:file(bytes32, uint256).selector, "tin changed in an unexpected function";
+    assert toutAfter != toutBefore => f.selector == sig:file(bytes32, uint256).selector, "tout changed in an unexpected function";
+    assert bufAfter != bufBefore => f.selector == sig:file(bytes32, uint256).selector, "buf changed in an unexpected function";
+}
+
 // Verify correct storage changes for non reverting rely
 rule rely(address usr) {
     env e;
@@ -51,29 +81,14 @@ rule rely(address usr) {
     address anyAddr;
 
     mathint wardsOtherBefore = wards(otherAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
 
     rely(e, usr);
 
     mathint wardsUsrAfter = wards(usr);
     mathint wardsOtherAfter = wards(otherAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
     assert wardsUsrAfter == 1, "rely did not set wards[usr]";
     assert wardsOtherAfter == wardsOtherBefore, "rely did not keep unchanged the rest of wards[x]";
-    assert budAfter == budBefore, "rely did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "rely did not keep unchanged vow";
-    assert tinAfter == tinBefore, "rely did not keep unchanged tin";
-    assert toutAfter == toutBefore, "rely did not keep unchanged tout";
-    assert bufAfter == bufBefore, "rely did not keep unchanged buf";
 }
 
 // Verify revert rules on rely
@@ -102,28 +117,14 @@ rule deny(address usr) {
 
     mathint wardsOtherBefore = wards(otherAddr);
     mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
 
     deny(e, usr);
 
     mathint wardsUsrAfter = wards(usr);
     mathint wardsOtherAfter = wards(otherAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
     assert wardsUsrAfter == 0, "deny did not set wards[usr]";
     assert wardsOtherAfter == wardsOtherBefore, "deny did not keep unchanged the rest of wards[x]";
-    assert budAfter == budBefore, "deny did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "deny did not keep unchanged vow";
-    assert tinAfter == tinBefore, "deny did not keep unchanged tin";
-    assert toutAfter == toutBefore, "deny did not keep unchanged tout";
-    assert bufAfter == bufBefore, "deny did not keep unchanged buf";
 }
 
 // Verify revert rules on deny
@@ -150,30 +151,15 @@ rule kiss(address usr) {
     require otherAddr != usr;
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
     mathint budOtherBefore = bud(otherAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
 
     kiss(e, usr);
 
-    mathint wardsAfter = wards(anyAddr);
     mathint budUsrAfter = bud(usr);
     mathint budOtherAfter = bud(otherAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
-    assert wardsAfter == wardsBefore, "kiss did not keep unchanged every wards[x]";
     assert budUsrAfter == 1, "kiss did not set bud[usr]";
     assert budOtherAfter == budOtherBefore, "kiss did not keep unchanged the rest of bud[x]";
-    assert vowAfter == vowBefore, "kiss did not keep unchanged vow";
-    assert tinAfter == tinBefore, "kiss did not keep unchanged tin";
-    assert toutAfter == toutBefore, "kiss did not keep unchanged tout";
-    assert bufAfter == bufBefore, "kiss did not keep unchanged buf";
 }
 
 // Verify revert rules on kiss
@@ -200,30 +186,15 @@ rule diss(address usr) {
     require otherAddr != usr;
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
     mathint budOtherBefore = bud(otherAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
 
     diss(e, usr);
 
-    mathint wardsAfter = wards(anyAddr);
     mathint budUsrAfter = bud(usr);
     mathint budOtherAfter = bud(otherAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
-    assert wardsAfter == wardsBefore, "diss did not keep unchanged every wards[x]";
     assert budUsrAfter == 0, "diss did not set bud[usr]";
     assert budOtherAfter == budOtherBefore, "diss did not keep unchanged the rest of bud[x]";
-    assert vowAfter == vowBefore, "diss did not keep unchanged vow";
-    assert tinAfter == tinBefore, "diss did not keep unchanged tin";
-    assert toutAfter == toutBefore, "diss did not keep unchanged tout";
-    assert bufAfter == bufBefore, "diss did not keep unchanged buf";
 }
 
 // Verify revert rules on diss
@@ -248,27 +219,11 @@ rule file_address(bytes32 what, address data) {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
     file(e, what, data);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
     address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
-    assert wardsAfter == wardsBefore, "file did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "file did not keep unchanged every bud[x]";
     assert vowAfter == data, "file did not set vow";
-    assert tinAfter == tinBefore, "file did not keep unchanged tin";
-    assert toutAfter == toutBefore, "file did not keep unchanged tout";
-    assert bufAfter == bufBefore, "file did not keep unchanged buf";
 }
 
 // Verify revert rules on file
@@ -295,25 +250,16 @@ rule file_uint256(bytes32 what, uint256 data) {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
     mathint tinBefore = tin();
     mathint toutBefore = tout();
     mathint bufBefore = buf();
 
     file(e, what, data);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
     mathint tinAfter = tin();
     mathint toutAfter = tout();
     mathint bufAfter = buf();
 
-    assert wardsAfter == wardsBefore, "file did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "file did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "file did not keep unchanged vow";
     assert what == to_bytes32(0x74696e0000000000000000000000000000000000000000000000000000000000)
            => tinAfter == to_mathint(data), "file did not set tin";
     assert what != to_bytes32(0x74696e0000000000000000000000000000000000000000000000000000000000)
@@ -359,14 +305,8 @@ rule sellGem(address usr, uint256 gemAmt) {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
-    require tinBefore <= WAD();
+    mathint tin = tin();
+    require tin <= WAD();
 
     address pocket = pocket();
     require pocket != e.msg.sender;
@@ -379,28 +319,15 @@ rule sellGem(address usr, uint256 gemAmt) {
     require gemBalanceOfUsrBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
 
     mathint gemAmtWad = gemAmt * to18ConversionFactor;
-    mathint calcDaiOutWad = gemAmtWad - gemAmtWad * tinBefore / WAD();
+    mathint calcDaiOutWad = gemAmtWad - gemAmtWad * tin / WAD();
 
     mathint daiOutWad = sellGem(e, usr, gemAmt);
-
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
     mathint daiBalanceOfUsrAfter = dai.balanceOf(usr);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
     mathint gemBalanceOfUsrAfter = gem.balanceOf(e.msg.sender);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
 
-    assert wardsAfter == wardsBefore, "sellGem did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "sellGem did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "sellGem did not keep unchanged vow";
-    assert tinAfter == tinBefore, "sellGem did not keep unchanged tin";
-    assert toutAfter == toutBefore, "sellGem did not keep unchanged tout";
-    assert bufAfter == bufBefore, "sellGem did not keep unchanged buf";
     assert daiOutWad == calcDaiOutWad, "sellGem did not return the expected daiOutWad";
     assert gemBalanceOfUsrAfter == gemBalanceOfUsrBefore - gemAmt, "sellGem did not decrease gem.balanceOf(sender) by gemAmt";
     assert gemBalanceOfPocketAfter == gemBalanceOfPocketBefore + gemAmt, "sellGem did not increase gem.balanceOf(pocket) by gemAmt";
@@ -454,13 +381,6 @@ rule sellGemNoFee(address usr, uint256 gemAmt) {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
     address pocket = pocket();
     require pocket != e.msg.sender;
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -475,24 +395,11 @@ rule sellGemNoFee(address usr, uint256 gemAmt) {
 
     mathint daiOutWad = sellGemNoFee(e, usr, gemAmt);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
-
     mathint daiBalanceOfUsrAfter = dai.balanceOf(usr);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
     mathint gemBalanceOfSenderAfter = gem.balanceOf(e.msg.sender);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
 
-    assert wardsAfter == wardsBefore, "sellGemNoFee did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "sellGemNoFee did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "sellGemNoFee did not keep unchanged vow";
-    assert tinAfter == tinBefore, "sellGemNoFee did not keep unchanged tin";
-    assert toutAfter == toutBefore, "sellGemNoFee did not keep unchanged tout";
-    assert bufAfter == bufBefore, "sellGemNoFee did not keep unchanged buf";
     assert daiOutWad == calcDaiOutWad, "sellGemNoFee did not return the expected daiOutWad";
     assert gemBalanceOfSenderAfter == gemBalanceOfSenderBefore - gemAmt, "sellGemNoFee did not decrease gem.balanceOf(sender) by gemAmt";
     assert gemBalanceOfPocketAfter == gemBalanceOfPocketBefore + gemAmt, "sellGemNoFee did not increase gem.balanceOf(pocket) by gemAmt";
@@ -546,14 +453,8 @@ rule buyGem(address usr, uint256 gemAmt) {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
-    require toutBefore <= WAD();
+    mathint tout = tout();
+    require tout <= WAD();
 
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -565,28 +466,15 @@ rule buyGem(address usr, uint256 gemAmt) {
     require gemBalanceOfUsrBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
 
     mathint gemAmtWad = gemAmt * to18ConversionFactor;
-    mathint calcDaiInWad = gemAmtWad + gemAmtWad * toutBefore / WAD();
+    mathint calcDaiInWad = gemAmtWad + gemAmtWad * tout / WAD();
 
     mathint daiInWad = buyGem(e, usr, gemAmt);
-
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
 
     mathint daiBalanceOfSenderAfter = dai.balanceOf(e.msg.sender);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
     mathint gemBalanceOfUsrAfter = gem.balanceOf(usr);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
 
-    assert wardsAfter == wardsBefore, "buyGem did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "buyGem did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "buyGem did not keep unchanged vow";
-    assert tinAfter == tinBefore, "buyGem did not keep unchanged tin";
-    assert toutAfter == toutBefore, "buyGem did not keep unchanged tout";
-    assert bufAfter == bufBefore, "buyGem did not keep unchanged buf";
     assert daiInWad == calcDaiInWad, "buyGem did not return the expected daiInWad";
     assert daiBalanceOfSenderAfter == daiBalanceOfSenderBefore - daiInWad, "buyGem did not decrease dai.balanceOf(sender) by daiInWad";
     assert daiBalanceOfPsmAfter == daiBalanceOfPsmBefore + daiInWad, "buyGem did not increase dai.balanceOf(psm) by daiInWad";
@@ -649,13 +537,6 @@ rule buyGemNoFee(address usr, uint256 gemAmt) {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
 
@@ -669,24 +550,11 @@ rule buyGemNoFee(address usr, uint256 gemAmt) {
 
     mathint daiInWad = buyGemNoFee(e, usr, gemAmt);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
-
     mathint daiBalanceOfSenderAfter = dai.balanceOf(e.msg.sender);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
     mathint gemBalanceOfUsrAfter = gem.balanceOf(usr);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
 
-    assert wardsAfter == wardsBefore, "buyGemNoFee did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "buyGemNoFee did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "buyGemNoFee did not keep unchanged vow";
-    assert tinAfter == tinBefore, "buyGemNoFee did not keep unchanged tin";
-    assert toutAfter == toutBefore, "buyGemNoFee did not keep unchanged tout";
-    assert bufAfter == bufBefore, "buyGemNoFee did not keep unchanged buf";
     assert daiInWad == calcDaiInWad, "buyGemNoFee did not return the expected daiInWad";
     assert daiBalanceOfSenderAfter == daiBalanceOfSenderBefore - daiInWad, "buyGemNoFee did not decrease dai.balanceOf(sender) by daiInWad";
     assert daiBalanceOfPsmAfter == daiBalanceOfPsmBefore + daiInWad, "buyGemNoFee did not increase dai.balanceOf(psm) by daiInWad";
@@ -745,13 +613,6 @@ rule fill() {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
     bytes32 ilk = ilk();
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -765,7 +626,7 @@ rule fill() {
 
     mathint calcWad = min(
                         min(
-                            subCap(gemBalanceOfPocketBefore * to18ConversionFactor + bufBefore, vatIlkArtBefore),
+                            subCap(gemBalanceOfPocketBefore * to18ConversionFactor + buf(), vatIlkArtBefore),
                             subCap(vatIlkLineBefore / RAY(), vatIlkArtBefore)
                         ),
                         subCap(vatLineBefore, vatDebtBefore) / RAY()
@@ -773,23 +634,10 @@ rule fill() {
 
     mathint wad = fill(e);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
-
     mathint vatIlkArtAfter; mathint d;
     vatIlkArtAfter, a, b, c, d = vat.ilks(ilk);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
 
-    assert wardsAfter == wardsBefore, "fill did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "fill did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "fill did not keep unchanged vow";
-    assert tinAfter == tinBefore, "fill did not keep unchanged tin";
-    assert toutAfter == toutBefore, "fill did not keep unchanged tout";
-    assert bufAfter == bufBefore, "fill did not keep unchanged buf";
     assert wad == calcWad, "fill did not return the expected wad";
     assert vatIlkArtAfter == vatIlkArtBefore + wad, "fill did not increase vat.ilks(ilk).Art by wad";
     assert daiBalanceOfPsmAfter == daiBalanceOfPsmBefore + wad, "fill did not increase dai.balanceOf(psm) by wad";
@@ -879,13 +727,6 @@ rule trim() {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
     bytes32 ilk = ilk();
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -897,7 +738,7 @@ rule trim() {
 
     mathint calcWad = min(
                         max(
-                            subCap(vatIlkArtBefore, gemBalanceOfPocketBefore * to18ConversionFactor + bufBefore),
+                            subCap(vatIlkArtBefore, gemBalanceOfPocketBefore * to18ConversionFactor + buf()),
                             subCap(vatIlkArtBefore, vatIlkLineBefore / RAY())
                         ),
                         daiBalanceOfPsmBefore
@@ -905,23 +746,10 @@ rule trim() {
 
     mathint wad = trim(e);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
-
     mathint vatIlkArtAfter; mathint d;
     vatIlkArtAfter, a, b, c, d = vat.ilks(ilk);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
 
-    assert wardsAfter == wardsBefore, "trim did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "trim did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "trim did not keep unchanged vow";
-    assert tinAfter == tinBefore, "trim did not keep unchanged tin";
-    assert toutAfter == toutBefore, "trim did not keep unchanged tout";
-    assert bufAfter == bufBefore, "trim did not keep unchanged buf";
     assert wad == calcWad, "trim did not return the expected wad";
     assert vatIlkArtAfter == vatIlkArtBefore - wad, "trim did not decrease vat.ilks(ilk).Art by wad";
     assert daiBalanceOfPsmAfter == daiBalanceOfPsmBefore - wad, "trim did not decrease dai.balanceOf(psm) by wad";
@@ -999,13 +827,6 @@ rule chug() {
 
     address anyAddr;
 
-    mathint wardsBefore = wards(anyAddr);
-    mathint budBefore = bud(anyAddr);
-    address vowBefore = vow();
-    mathint tinBefore = tin();
-    mathint toutBefore = tout();
-    mathint bufBefore = buf();
-
     bytes32 ilk = ilk();
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -1014,7 +835,8 @@ rule chug() {
     a, vatUrnPsmArt = vat.urns(ilk, currentContract);
     mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
     mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);
-    mathint vatDaiVowBefore = vat.dai(vowBefore);
+    address vow = vow();
+    mathint vatDaiVowBefore = vat.dai(vow);
 
     mathint calcWad = min(
                         daiBalanceOfPsmBefore,
@@ -1023,25 +845,12 @@ rule chug() {
 
     mathint wad = chug(e);
 
-    mathint wardsAfter = wards(anyAddr);
-    mathint budAfter = bud(anyAddr);
-    address vowAfter = vow();
-    mathint tinAfter = tin();
-    mathint toutAfter = tout();
-    mathint bufAfter = buf();
-
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
-    mathint vatDaiVowAfter = vat.dai(vowBefore);
+    mathint vatDaiVowAfter = vat.dai(vow);
 
-    assert wardsAfter == wardsBefore, "chug did not keep unchanged every wards[x]";
-    assert budAfter == budBefore, "chug did not keep unchanged every bud[x]";
-    assert vowAfter == vowBefore, "chug did not keep unchanged vow";
-    assert tinAfter == tinBefore, "chug did not keep unchanged tin";
-    assert toutAfter == toutBefore, "chug did not keep unchanged tout";
-    assert bufAfter == bufBefore, "chug did not keep unchanged buf";
     assert wad == calcWad, "chug did not return the expected wad";
     assert daiBalanceOfPsmAfter == daiBalanceOfPsmBefore - wad, "chug did not decrease dai.balanceOf(psm) by wad";
-    assert vowBefore != daiJoin => vatDaiVowAfter == vatDaiVowBefore + wad * RAY(), "chug did not increase vat.dai(vow) by wad * RAY";
+    assert vow != daiJoin => vatDaiVowAfter == vatDaiVowBefore + wad * RAY(), "chug did not increase vat.dai(vow) by wad * RAY";
 }
 
 // Verify revert rules on chug
@@ -1273,5 +1082,3 @@ rule assetsGreaterOrEqualArt(method f) {
     // assert invariant holds after
     assert daiBalanceOfPsmAfter + gemBalanceOfPocketAfter * to18ConversionFactor >= vatUrnPsmArtAfter;
 }
-
-
