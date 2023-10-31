@@ -42,6 +42,7 @@ definition min(mathint x, mathint y) returns mathint = x < y ? x : y;
 definition max(mathint x, mathint y) returns mathint = x > y ? x : y;
 definition subCap(mathint x, mathint y) returns mathint = x > y ? x - y : 0;
 
+// Verify that each storage layout is only modified in the corresponding functions
 rule storageAffected(method f) {
     env e;
 
