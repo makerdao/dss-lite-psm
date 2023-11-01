@@ -16,7 +16,6 @@
 pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
-import {DssPocket} from "src/DssPocket.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "./DssLitePsmInit.sol";
@@ -45,11 +44,12 @@ contract DssLitePsmInitTest is DssTest {
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
     address pause;
     ProxyLike pauseProxy;
-    AutoLineLike autoLine;
     DssInstance dss;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig cfg;
     InitCaller caller;
+    AutoLineLike autoLine;
+    DssLitePsm litePsm;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
@@ -69,12 +69,14 @@ contract DssLitePsmInitTest is DssTest {
             })
         );
 
+        litePsm = DssLitePsm(inst.litePsm);
+
         cfg = DssLitePsmInitConfig({
             srcPsm: dss.chainlog.getAddress(SRC_PSM_KEY),
             chainlogKey: PSM_KEY,
             buf: 50_000_000 * WAD,
-            tin: 0,
-            tout: 0,
+            tin: 0.01 ether,
+            tout: 0.01 ether,
             maxLine: 1_000_000_000 * RAD,
             gap: 50_000_000 * RAD,
             ttl: 8 hours
@@ -90,6 +92,7 @@ contract DssLitePsmInitTest is DssTest {
     }
 
     function testOnboarding() public {
+        uint256 pglobalLine = dss.vat.Line();
         (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, cfg.srcPsm);
         assertGt(psrcIlkArt, 0, "before: src ilk Art is zero");
@@ -121,12 +124,25 @@ contract DssLitePsmInitTest is DssTest {
         // `litePsm` not present in Chainlog
         {
             vm.expectRevert("dss-chain-log/invalid-key");
-            dss.chainlog.getAddress(PSM_KEY);
+            dss.chainlog.getAddress(cfg.chainlogKey);
         }
 
         // Simulate a spell casting
         vm.prank(pause);
         pauseProxy.exec(address(caller), abi.encodeCall(caller.init, (dss, inst, cfg)));
+
+        // Sanity checks
+        {
+            assertEq(litePsm.tin(), cfg.tin, "after: invalid tin");
+            assertEq(litePsm.tout(), cfg.tout, "after: invalid tout");
+            assertEq(litePsm.buf(), cfg.buf, "after: invalid buf");
+        }
+
+        // Global Line should be adjusted by increasing the new PSM line and reducing the old one
+        {
+            uint256 globalLine = dss.vat.Line();
+            assertEq(globalLine, pglobalLine - psrcLine + ((psrcArt + cfg.buf) * RAY), "after: invalid Line change");
+        }
 
         // All collateral and debt has been migrated from the source PSM
         {
@@ -143,7 +159,7 @@ contract DssLitePsmInitTest is DssTest {
             (uint256 ilkArt,,, uint256 line,) = dss.vat.ilks(ILK);
             (uint256 ink, uint256 art) = dss.vat.urns(ILK, inst.litePsm);
             assertEq(ilkArt, psrcIlkArt + cfg.buf, "after: invalid ilk Art");
-            assertEq(line, (psrcIlkArt + 2 * cfg.buf) * RAY, "after: invalid line");
+            assertEq(line, (psrcArt + cfg.buf) * RAY, "after: invalid line");
             assertEq(art, psrcIlkArt + cfg.buf, "after: invalid art");
             assertGt(ink, 0, "after: ink is zero");
         }
@@ -154,7 +170,7 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(srcMaxLine, 0, "after: src ilk not removed from AutoLine");
         }
 
-        // Source PSM is present in AutoLiine
+        // New PSM is present in AutoLiine
         {
             (uint256 maxLine, uint256 gap, uint48 ttl,,) = autoLine.ilks(ILK);
             assertEq(maxLine, cfg.maxLine, "after: AutoLine invalid maxLine");
@@ -164,7 +180,7 @@ contract DssLitePsmInitTest is DssTest {
 
         // `litePsm` is present in Chainlog
         {
-            assertEq(dss.chainlog.getAddress(PSM_KEY), inst.litePsm, "after: `litePsm` not in chainlog");
+            assertEq(dss.chainlog.getAddress(cfg.chainlogKey), inst.litePsm, "after: `litePsm` not in chainlog");
         }
     }
 }
