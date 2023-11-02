@@ -79,7 +79,6 @@ rule rely(address usr) {
 
     address otherAddr;
     require otherAddr != usr;
-    address anyAddr;
 
     mathint wardsOtherBefore = wards(otherAddr);
 
@@ -114,10 +113,8 @@ rule deny(address usr) {
 
     address otherAddr;
     require otherAddr != usr;
-    address anyAddr;
 
     mathint wardsOtherBefore = wards(otherAddr);
-    mathint budBefore = bud(anyAddr);
 
     deny(e, usr);
 
@@ -150,7 +147,6 @@ rule kiss(address usr) {
 
     address otherAddr;
     require otherAddr != usr;
-    address anyAddr;
 
     mathint budOtherBefore = bud(otherAddr);
 
@@ -185,7 +181,6 @@ rule diss(address usr) {
 
     address otherAddr;
     require otherAddr != usr;
-    address anyAddr;
 
     mathint budOtherBefore = bud(otherAddr);
 
@@ -218,8 +213,6 @@ rule diss_revert(address usr) {
 rule file_address(bytes32 what, address data) {
     env e;
 
-    address anyAddr;
-
     file(e, what, data);
 
     address vowAfter = vow();
@@ -248,8 +241,6 @@ rule file_address_revert(bytes32 what, address data) {
 // Verify correct storage changes for non reverting file
 rule file_uint256(bytes32 what, uint256 data) {
     env e;
-
-    address anyAddr;
 
     mathint tinBefore = tin();
     mathint toutBefore = tout();
@@ -303,8 +294,6 @@ rule file_uint256_revert(bytes32 what, uint256 data) {
 // Verify correct storage changes for non reverting sellGem
 rule sellGem(address usr, uint256 gemAmt) {
     env e;
-
-    address anyAddr;
 
     mathint tin = tin();
     require tin <= WAD();
@@ -380,8 +369,6 @@ rule sellGem_revert(address usr, uint256 gemAmt) {
 rule sellGemNoFee(address usr, uint256 gemAmt) {
     env e;
 
-    address anyAddr;
-
     address pocket = pocket();
     require pocket != e.msg.sender;
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -451,8 +438,6 @@ rule buyGem(address usr, uint256 gemAmt) {
     env e;
 
     require e.msg.sender != currentContract;
-
-    address anyAddr;
 
     mathint tout = tout();
     require tout <= WAD();
@@ -536,8 +521,6 @@ rule buyGemNoFee(address usr, uint256 gemAmt) {
 
     require e.msg.sender != currentContract;
 
-    address anyAddr;
-
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
 
@@ -611,8 +594,6 @@ rule buyGemNoFee_revert(address usr, uint256 gemAmt) {
 // Verify correct storage changes for non reverting fill
 rule fill() {
     env e;
-
-    address anyAddr;
 
     bytes32 ilk = ilk();
     address pocket = pocket();
@@ -726,8 +707,6 @@ rule fill_revert() {
 rule trim() {
     env e;
 
-    address anyAddr;
-
     bytes32 ilk = ilk();
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
@@ -825,8 +804,6 @@ rule trim_revert() {
 // Verify correct storage changes for non reverting chug
 rule chug() {
     env e;
-
-    address anyAddr;
 
     bytes32 ilk = ilk();
     address pocket = pocket();
