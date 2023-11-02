@@ -123,7 +123,9 @@ library DssLitePsmInit {
 
         // 2. Set interim params to accommodate the new PSM.
         {
-            uint256 initLine = (srcArt + cfg.buf) * RAY;
+            uint256 initLine = srcArt * RAY;
+            // Ensure we will be able to call `fill` on step 7.
+            require(cfg.maxLine > initLine, "DssLitePsmInit/max-line-too-low");
             dss.vat.file("Line", dss.vat.Line() + initLine);
             dss.vat.file(ilk, "line", initLine);
         }
@@ -138,7 +140,7 @@ library DssLitePsmInit {
         }
 
         // 3.2. Pre-mint enough Dai liquidity + buf to save 1 `fill` call
-        DssLitePsmLike(inst.litePsm).file("buf", srcArt + cfg.buf);
+        DssLitePsmLike(inst.litePsm).file("buf", srcArt);
         DssLitePsmLike(inst.litePsm).file("tin", 0);
         DssLitePsmLike(inst.litePsm).file("tout", 0);
         DssLitePsmLike(inst.litePsm).fill();
@@ -147,7 +149,7 @@ library DssLitePsmInit {
 
         // 4.1. Grab the entire collateral and the entire debt from the source PSM into the executing contract.
         {
-            // Notice we enforce that srcInk == srcArt
+            // Notice that we enforce that `srcInk == srcArt`.
             int256 dart = -_int256(srcArt);
             dss.vat.grab(srcIlk, cfg.srcPsm, address(this), address(this), dart, dart);
         }
@@ -168,27 +170,31 @@ library DssLitePsmInit {
         // 4.5. Erase the bad debt generated in 4.1.
         dss.vat.heal(srcArt * RAY);
 
-        // 5. Set `litePsm` config params.
-        DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
-        DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
-        DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
-
-        // 6. Update auto-line.
+        // 5. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 6.1. Set `srcPsm` debt ceiling to zero.
+        // 5.1. Set `srcPsm` debt ceiling to zero.
         autoLine.remIlk(srcIlk);
         dss.vat.file(srcIlk, "line", 0);
         dss.vat.file("Line", dss.vat.Line() - srcLine);
 
-        // 6.2. Set auto-line for the new PSM.
+        // 5.2. Set auto-line for the new PSM.
         autoLine.setIlk(ilk, cfg.maxLine, cfg.gap, cfg.ttl);
+        autoLine.exec(ilk);
 
-        // 7. Grant permissions to ESM
+        // 6. Set `litePsm` config params.
+        DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
+        DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
+        DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
+
+        // 7. Fill `litePsm` so there is liquidity available immediately.
+        DssLitePsmLike(inst.litePsm).fill();
+
+        // 8. Grant permissions to ESM.
         DssLitePsmLike(inst.litePsm).rely(address(dss.esm));
         DssPocketLike(inst.pocket).rely(address(dss.esm));
 
-        // 8. Add `litePsm` to the chainlog
+        // 9. Add `litePsm` to the chainlog.
         dss.chainlog.setAddress(cfg.chainlogKey, inst.litePsm);
     }
 }
