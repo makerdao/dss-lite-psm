@@ -52,7 +52,7 @@ interface DssPsmLike {
 }
 
 interface PipLike {
-    function poke(bytes32) external;
+    function read() external view returns (bytes32);
 }
 
 interface GemJoinLike {
@@ -108,6 +108,9 @@ library DssLitePsmInit {
             require(srcInk == srcArt, "DssLitePsmInit/src-ink-art-mismatch");
         }
 
+        (address pip,) = dss.spotter.ilks(srcIlk);
+        require(uint256(PipLike(pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
+
         // 0. Wire `litePsm` and `pocket`.
         DssPocketLike(inst.pocket).hope(inst.litePsm);
 
@@ -115,14 +118,15 @@ library DssLitePsmInit {
         dss.vat.init(ilk);
         dss.jug.init(ilk);
         dss.spotter.file(ilk, "mat", 1 * RAY);
-        dss.spotter.file(ilk, "pip", inst.pip);
-        PipLike(inst.pip).poke(bytes32(1 * WAD));
+        dss.spotter.file(ilk, "pip", pip);
         dss.spotter.poke(ilk);
 
         // 2. Set interim params to accommodate the new PSM.
-        uint256 initLine = (srcArt + cfg.buf) * RAY;
-        dss.vat.file("Line", dss.vat.Line() + initLine);
-        dss.vat.file(ilk, "line", initLine);
+        {
+            uint256 initLine = (srcArt + cfg.buf) * RAY;
+            dss.vat.file("Line", dss.vat.Line() + initLine);
+            dss.vat.file(ilk, "line", initLine);
+        }
 
         // 3. Initial `litePsm` setup
 
@@ -141,27 +145,27 @@ library DssLitePsmInit {
 
         // 4. Move PSM gems.
 
-        // 4.2. Grab the entire collateral and the entire debt from the source PSM into the executing contract.
+        // 4.1. Grab the entire collateral and the entire debt from the source PSM into the executing contract.
         {
             // Notice we enforce that srcInk == srcArt
             int256 dart = -_int256(srcArt);
             dss.vat.grab(srcIlk, cfg.srcPsm, address(this), address(this), dart, dart);
         }
 
-        // 4.3. Transfer the grabbed collateral to the executing contract.
+        // 4.2. Transfer the grabbed collateral to the executing contract.
         uint256 srcGemAmt = srcArt / DssLitePsmLike(inst.litePsm).to18ConversionFactor();
         srcGemJoin.exit(address(this), srcGemAmt);
 
-        // 4.4. Sell the grabbed collateral gems into the new PSM.
+        // 4.3. Sell the grabbed collateral gems into the new PSM.
         GemLike(gem).approve(inst.litePsm, srcGemAmt);
         uint256 daiOutWad = DssLitePsmLike(inst.litePsm).sellGem(address(this), srcGemAmt);
         require(daiOutWad == srcArt, "DssLitePsmInit/invalid-dai-amount");
 
-        // 4.5. Convert ERC20 Dai into Vat Dai.
+        // 4.4. Convert ERC20 Dai into Vat Dai.
         dss.dai.approve(address(dss.daiJoin), daiOutWad);
         dss.daiJoin.join(address(this), daiOutWad);
 
-        // 4.6. Erase the bad debt generated in 5.1.
+        // 4.5. Erase the bad debt generated in 4.1.
         dss.vat.heal(srcArt * RAY);
 
         // 5. Set `litePsm` config params.

@@ -61,7 +61,6 @@ contract DssLitePsmDeployScript is Script {
 
         ScriptTools.exportContract(NAME, "litePsm", contracts.litePsm);
         ScriptTools.exportContract(NAME, "pocket", contracts.pocket);
-        ScriptTools.exportContract(NAME, "pip", contracts.pip);
         ScriptTools.exportContract(NAME, "gem", gem);
         ScriptTools.exportValue(NAME, "ilk", ilkStr);
     }

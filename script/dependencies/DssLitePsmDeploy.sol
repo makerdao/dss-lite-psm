@@ -18,7 +18,6 @@ pragma solidity ^0.8.16;
 import {ScriptTools} from "dss-test/ScriptTools.sol";
 import {DssLitePsm} from "../../src/DssLitePsm.sol";
 import {DssPocket} from "../../src/DssPocket.sol";
-import {DssValue} from "../../src/DssValue.sol";
 
 struct DssLitePsmDeployParams {
     address deployer;
@@ -31,16 +30,13 @@ struct DssLitePsmDeployParams {
 struct DssLitePsmInstance {
     address litePsm;
     address pocket;
-    address pip;
 }
 
 library DssLitePsmDeploy {
     function deploy(DssLitePsmDeployParams memory p) internal returns (DssLitePsmInstance memory r) {
         r.pocket = address(new DssPocket(p.gem));
         r.litePsm = address(new DssLitePsm(p.ilk, p.gem, p.daiJoin, r.pocket));
-        r.pip = address(new DssValue());
 
-        ScriptTools.switchOwner(r.pip, p.deployer, p.owner);
         ScriptTools.switchOwner(r.pocket, p.deployer, p.owner);
         ScriptTools.switchOwner(r.litePsm, p.deployer, p.owner);
     }
