@@ -139,7 +139,7 @@ library DssLitePsmInit {
             dss.vat.grab(ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
         }
 
-        // 3.2. Pre-mint enough Dai liquidity + buf to save 1 `fill` call
+        // 3.2. Pre-mint enough Dai liquidity to clear `srcPsm`.
         DssLitePsmLike(inst.litePsm).file("buf", srcArt);
         DssLitePsmLike(inst.litePsm).file("tin", 0);
         DssLitePsmLike(inst.litePsm).file("tout", 0);
