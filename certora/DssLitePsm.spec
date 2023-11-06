@@ -1081,7 +1081,7 @@ rule sellGemEquivalence() {
 
     storage afterSellNoFee = lastStorage;
 
-    assert afterSell[currentContract] == afterSellNoFee[currentContract], "currentContract storage different";
+    assert afterSell[currentContract] == afterSellNoFee[currentContract], "psm storage different";
     assert afterSell[gem] == afterSellNoFee[gem], "gem storage different";
     assert afterSell[dai] == afterSellNoFee[dai], "dai storage different";
 }
@@ -1106,7 +1106,7 @@ rule buyGemEquivalence() {
 
     storage afterBuyNoFee = lastStorage;
 
-    assert afterBuy[currentContract] == afterBuyNoFee[currentContract], "currentContract storage different";
+    assert afterBuy[currentContract] == afterBuyNoFee[currentContract], "psm storage different";
     assert afterBuy[gem] == afterBuyNoFee[gem], "gem storage different";
     assert afterBuy[dai] == afterBuyNoFee[dai], "dai storage different";
 }
