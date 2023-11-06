@@ -200,11 +200,7 @@ library DssLitePsmInit {
         // 7. Fill `litePsm` so there is liquidity available immediately.
         DssLitePsmLike(inst.litePsm).fill();
 
-        // 8. Grant permissions to ESM.
-        DssLitePsmLike(inst.litePsm).rely(address(dss.esm));
-        DssPocketLike(inst.pocket).rely(address(dss.esm));
-
-        // 9. Add `litePsm` and `pocket` to the chainlog.
+        // 8. Add `litePsm` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
         dss.chainlog.setAddress(cfg.dstPocketKey, inst.pocket);
     }
