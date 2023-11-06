@@ -304,9 +304,9 @@ rule sellGem(address usr, uint256 gemAmt) {
 
     mathint daiBalanceOfUsrBefore = dai.balanceOf(usr);
     mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
-    mathint gemBalanceOfUsrBefore = gem.balanceOf(e.msg.sender);
+    mathint gemBalanceOfSenderBefore = gem.balanceOf(e.msg.sender);
     mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);
-    require gemBalanceOfUsrBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
+    require gemBalanceOfSenderBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
 
     mathint gemAmtWad = gemAmt * to18ConversionFactor;
     mathint calcDaiOutWad = gemAmtWad - gemAmtWad * tin / WAD();
@@ -315,11 +315,11 @@ rule sellGem(address usr, uint256 gemAmt) {
 
     mathint daiBalanceOfUsrAfter = dai.balanceOf(usr);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
-    mathint gemBalanceOfUsrAfter = gem.balanceOf(e.msg.sender);
+    mathint gemBalanceOfSenderAfter = gem.balanceOf(e.msg.sender);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
 
     assert daiOutWad == calcDaiOutWad, "sellGem did not return the expected daiOutWad";
-    assert gemBalanceOfUsrAfter == gemBalanceOfUsrBefore - gemAmt, "sellGem did not decrease gem.balanceOf(sender) by gemAmt";
+    assert gemBalanceOfSenderAfter == gemBalanceOfSenderBefore - gemAmt, "sellGem did not decrease gem.balanceOf(sender) by gemAmt";
     assert gemBalanceOfPocketAfter == gemBalanceOfPocketBefore + gemAmt, "sellGem did not increase gem.balanceOf(pocket) by gemAmt";
     assert usr != currentContract => daiBalanceOfUsrAfter == daiBalanceOfUsrBefore + daiOutWad, "sellGem did not increase dai.balanceOf(usr) by daiOutWad";
     assert usr != currentContract => daiBalanceOfPsmAfter == daiBalanceOfPsmBefore - daiOutWad, "sellGem did not decrease dai.balanceOf(psm) by daiOutWad";
