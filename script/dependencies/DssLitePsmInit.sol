@@ -21,6 +21,7 @@ import {DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
 struct DssLitePsmInitConfig {
     bytes32 srcPsmKey;
     bytes32 dstPsmKey;
+    bytes32 dstPocketKey;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -85,7 +86,10 @@ library DssLitePsmInit {
 
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
         // Sanity checks
-        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmInit/invalid-key-reuse");
+        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmInit/src-psm-same-key-dst-psm");
+        require(cfg.srcPsmKey != cfg.dstPocketKey, "DssLitePsmInit/src-psm-same-key-pocket");
+        require(cfg.dstPsmKey != cfg.dstPocketKey, "DssLitePsmInit/dst-psm-same-key-pocket");
+
         require(DssLitePsmLike(inst.litePsm).pocket() == inst.pocket, "DssLitePsmInit/pocket-address-mismatch");
         require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
 
@@ -200,7 +204,8 @@ library DssLitePsmInit {
         DssLitePsmLike(inst.litePsm).rely(address(dss.esm));
         DssPocketLike(inst.pocket).rely(address(dss.esm));
 
-        // 9. Add `litePsm` to the chainlog.
+        // 9. Add `litePsm` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
+        dss.chainlog.setAddress(cfg.dstPocketKey, inst.pocket);
     }
 }

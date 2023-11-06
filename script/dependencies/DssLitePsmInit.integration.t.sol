@@ -40,6 +40,7 @@ contract DssLitePsmInitTest is DssTest {
     bytes32 constant GEM_KEY = "USDC";
     bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
     bytes32 constant DST_PSM_KEY = "MCD_LITE_PSM_USDC_A";
+    bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
     address pause;
@@ -76,6 +77,7 @@ contract DssLitePsmInitTest is DssTest {
         cfg = DssLitePsmInitConfig({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
+            dstPocketKey: DST_POCKET_KEY,
             buf: 50_000_000 * WAD,
             tin: 0.01 ether,
             tout: 0.01 ether,
@@ -127,10 +129,13 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(pmaxLine, 0, "before: ilk already in AutoLine");
         }
 
-        // `litePsm` not present in Chainlog
+        // `litePsm` and `pocket` are not present in Chainlog
         {
             vm.expectRevert("dss-chain-log/invalid-key");
             dss.chainlog.getAddress(cfg.dstPsmKey);
+
+            vm.expectRevert("dss-chain-log/invalid-key");
+            dss.chainlog.getAddress(cfg.dstPocketKey);
         }
 
         // Simulate a spell casting
@@ -184,9 +189,10 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(ttl, uint48(cfg.ttl), "after: AutoLine invalid ttl");
         }
 
-        // `litePsm` is present in Chainlog
+        // `litePsm` and `pocket` are present in Chainlog
         {
             assertEq(dss.chainlog.getAddress(cfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
+            assertEq(dss.chainlog.getAddress(cfg.dstPocketKey), inst.pocket, "after: `pocket` not in chainlog");
         }
     }
 }
