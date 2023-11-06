@@ -184,10 +184,12 @@ contract DssLitePsmInitTest is DssTest {
 
         // New PSM is present in AutoLiine
         {
-            (uint256 maxLine, uint256 gap, uint48 ttl,,) = autoLine.ilks(DST_ILK);
+            (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
             assertEq(maxLine, cfg.maxLine, "after: AutoLine invalid maxLine");
             assertEq(gap, cfg.gap, "after: AutoLine invalid gap");
             assertEq(ttl, uint48(cfg.ttl), "after: AutoLine invalid ttl");
+            assertEq(last, block.number, "after: AutoLine invalid last");
+            assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
 
         // `litePsm` and `pocket` are present in Chainlog
