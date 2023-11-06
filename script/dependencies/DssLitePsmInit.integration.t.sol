@@ -172,7 +172,8 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(ilkArt, psrcIlkArt + cfg.buf, "after: invalid ilk Art");
             assertEq(line, (psrcArt + cfg.buf) * RAY, "after: invalid line");
             assertEq(art, psrcIlkArt + cfg.buf, "after: invalid art");
-            assertGt(ink, 0, "after: ink is zero");
+            // Unlimited virtual ink is set properly
+            assertEq(ink, uint256(type(int256).max / _int256(RAY)), "after: invalid ink");
         }
 
         // Source PSM has been removed from AutoLine
@@ -194,5 +195,9 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(dss.chainlog.getAddress(cfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
             assertEq(dss.chainlog.getAddress(cfg.dstPocketKey), inst.pocket, "after: `pocket` not in chainlog");
         }
+    }
+
+    function _int256(uint256 x) internal pure returns (int256 y) {
+        require((y = int256(x)) >= 0, "ARITHMETIC_ERROR");
     }
 }
