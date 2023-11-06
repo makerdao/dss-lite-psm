@@ -16,8 +16,8 @@
 pragma solidity ^0.8.16;
 
 import {ScriptTools} from "dss-test/ScriptTools.sol";
-import {DssLitePsm} from "../../src/DssLitePsm.sol";
-import {DssPocket} from "../../src/DssPocket.sol";
+import {DssLitePsm} from "src/DssLitePsm.sol";
+import {DssPocket} from "src/DssPocket.sol";
 
 struct DssLitePsmDeployParams {
     address deployer;

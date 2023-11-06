@@ -37,12 +37,13 @@ contract InitCaller {
 contract DssLitePsmInitTest is DssTest {
     address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
-    bytes32 constant ILK = "LITE-PSM-USDC-A";
-    bytes32 constant PSM_KEY = "MCD_LITE_PSM_USDC_A";
     bytes32 constant GEM_KEY = "USDC";
+    bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
+    bytes32 constant DST_PSM_KEY = "MCD_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
     address pause;
+    address srcPsm;
     ProxyLike pauseProxy;
     DssInstance dss;
     DssLitePsmInstance inst;
@@ -51,19 +52,20 @@ contract DssLitePsmInitTest is DssTest {
     AutoLineLike autoLine;
     DssLitePsm litePsm;
 
-    function setUp() public {
+    function _setUp() public {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(CHANGELOG);
         pause = dss.chainlog.getAddress("MCD_PAUSE");
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
+        srcPsm = dss.chainlog.getAddress(SRC_PSM_KEY);
         caller = new InitCaller();
 
         inst = DssLitePsmDeploy.deploy(
             DssLitePsmDeployParams({
                 deployer: address(this),
                 owner: address(pauseProxy),
-                ilk: ILK,
+                ilk: DST_ILK,
                 gem: dss.chainlog.getAddress(GEM_KEY),
                 daiJoin: address(dss.daiJoin)
             })
@@ -72,8 +74,8 @@ contract DssLitePsmInitTest is DssTest {
         litePsm = DssLitePsm(inst.litePsm);
 
         cfg = DssLitePsmInitConfig({
-            srcPsm: dss.chainlog.getAddress(SRC_PSM_KEY),
-            chainlogKey: PSM_KEY,
+            srcPsmKey: SRC_PSM_KEY,
+            dstPsmKey: DST_PSM_KEY,
             buf: 50_000_000 * WAD,
             tin: 0.01 ether,
             tout: 0.01 ether,
@@ -82,27 +84,31 @@ contract DssLitePsmInitTest is DssTest {
             ttl: 8 hours
         });
 
+        vm.label(CHANGELOG, "Chainlog");
+        vm.label(address(pauseProxy), "PauseProxy");
+        vm.label(pause, "Pause");
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.jug), "Jug");
         vm.label(address(dss.spotter), "Spotter");
         vm.label(address(dss.dai), "Dai");
         vm.label(address(dss.daiJoin), "DaiJoin");
-        vm.label(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"), "AutoLine");
-        vm.label(address(cfg.srcPsm), "PsmUsdc");
+        vm.label(address(autoLine), "AutoLine");
+        vm.label(srcPsm, "PsmUsdc");
     }
 
     function testOnboarding() public {
+        _setUp();
         uint256 pglobalLine = dss.vat.Line();
         (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
-        (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, cfg.srcPsm);
+        (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, srcPsm);
         assertGt(psrcIlkArt, 0, "before: src ilk Art is zero");
         assertGt(psrcLine, 0, "before: src line is zero");
         assertGt(psrcArt, 0, "before: src art is zero");
         assertGt(psrcInk, 0, "before: src ink is zero");
 
         {
-            (uint256 pilkArt,,, uint256 pline,) = dss.vat.ilks(ILK);
-            (uint256 pink, uint256 part) = dss.vat.urns(ILK, inst.litePsm);
+            (uint256 pilkArt,,, uint256 pline,) = dss.vat.ilks(DST_ILK);
+            (uint256 pink, uint256 part) = dss.vat.urns(DST_ILK, inst.litePsm);
             assertEq(pilkArt, 0, "before: ilk Art is not zero");
             assertEq(pline, 0, "before: line is not zero");
             assertEq(part, 0, "before: art is not zero");
@@ -117,14 +123,14 @@ contract DssLitePsmInitTest is DssTest {
 
         // `litePsm` not present in AutoLine
         {
-            (uint256 pmaxLine,,,,) = autoLine.ilks(ILK);
+            (uint256 pmaxLine,,,,) = autoLine.ilks(DST_ILK);
             assertEq(pmaxLine, 0, "before: ilk already in AutoLine");
         }
 
         // `litePsm` not present in Chainlog
         {
             vm.expectRevert("dss-chain-log/invalid-key");
-            dss.chainlog.getAddress(cfg.chainlogKey);
+            dss.chainlog.getAddress(cfg.dstPsmKey);
         }
 
         // Simulate a spell casting
@@ -147,7 +153,7 @@ contract DssLitePsmInitTest is DssTest {
         // All collateral and debt has been migrated from the source PSM
         {
             (uint256 srcIlkArt,,, uint256 srcLine,) = dss.vat.ilks(SRC_ILK);
-            (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, cfg.srcPsm);
+            (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, srcPsm);
             assertEq(srcIlkArt, 0, "after: src ilk Art is not zero");
             assertEq(srcLine, 0, "after: src line is not zero");
             assertEq(srcArt, 0, "after: src art is not zero");
@@ -156,8 +162,8 @@ contract DssLitePsmInitTest is DssTest {
 
         // New PSM is properly setup
         {
-            (uint256 ilkArt,,, uint256 line,) = dss.vat.ilks(ILK);
-            (uint256 ink, uint256 art) = dss.vat.urns(ILK, inst.litePsm);
+            (uint256 ilkArt,,, uint256 line,) = dss.vat.ilks(DST_ILK);
+            (uint256 ink, uint256 art) = dss.vat.urns(DST_ILK, inst.litePsm);
             assertEq(ilkArt, psrcIlkArt + cfg.buf, "after: invalid ilk Art");
             assertEq(line, (psrcArt + cfg.buf) * RAY, "after: invalid line");
             assertEq(art, psrcIlkArt + cfg.buf, "after: invalid art");
@@ -172,7 +178,7 @@ contract DssLitePsmInitTest is DssTest {
 
         // New PSM is present in AutoLiine
         {
-            (uint256 maxLine, uint256 gap, uint48 ttl,,) = autoLine.ilks(ILK);
+            (uint256 maxLine, uint256 gap, uint48 ttl,,) = autoLine.ilks(DST_ILK);
             assertEq(maxLine, cfg.maxLine, "after: AutoLine invalid maxLine");
             assertEq(gap, cfg.gap, "after: AutoLine invalid gap");
             assertEq(ttl, uint48(cfg.ttl), "after: AutoLine invalid ttl");
@@ -180,7 +186,7 @@ contract DssLitePsmInitTest is DssTest {
 
         // `litePsm` is present in Chainlog
         {
-            assertEq(dss.chainlog.getAddress(cfg.chainlogKey), inst.litePsm, "after: `litePsm` not in chainlog");
+            assertEq(dss.chainlog.getAddress(cfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
         }
     }
 }

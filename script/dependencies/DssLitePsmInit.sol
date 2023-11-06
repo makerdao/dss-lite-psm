@@ -19,8 +19,8 @@ import {DssInstance, DssIlkInstance} from "dss-test/MCD.sol";
 import {DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
 
 struct DssLitePsmInitConfig {
-    address srcPsm;
-    bytes32 chainlogKey;
+    bytes32 srcPsmKey;
+    bytes32 dstPsmKey;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -33,6 +33,7 @@ interface DssLitePsmLike {
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
     function gem() external view returns (address);
+    function daiJoin() external view returns (address);
     function ilk() external view returns (bytes32);
     function pocket() external view returns (address);
     function rely(address) external;
@@ -84,13 +85,17 @@ library DssLitePsmInit {
 
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
         // Sanity checks
+        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmInit/invalid-key-reuse");
         require(DssLitePsmLike(inst.litePsm).pocket() == inst.pocket, "DssLitePsmInit/pocket-address-mismatch");
+        require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
 
         bytes32 ilk = DssLitePsmLike(inst.litePsm).ilk();
-        bytes32 srcIlk = DssPsmLike(cfg.srcPsm).ilk();
+
+        address srcPsm = dss.chainlog.getAddress(cfg.srcPsmKey);
+        bytes32 srcIlk = DssPsmLike(srcPsm).ilk();
         require(srcIlk != ilk, "DssLitePsmInit/invalid-ilk-reuse");
 
-        GemJoinLike srcGemJoin = GemJoinLike(DssPsmLike(cfg.srcPsm).gemJoin());
+        GemJoinLike srcGemJoin = GemJoinLike(DssPsmLike(srcPsm).gemJoin());
         address gem = DssLitePsmLike(inst.litePsm).gem();
         {
             require(DssPocketLike(inst.pocket).gem() == gem, "DssLitePsmInit/pocket-gem-mismatch");
@@ -103,13 +108,10 @@ library DssLitePsmInit {
             uint256 srcIlkArt;
             uint256 srcInk;
             (srcIlkArt,,, srcLine,) = dss.vat.ilks(srcIlk);
-            (srcInk, srcArt) = dss.vat.urns(srcIlk, cfg.srcPsm);
+            (srcInk, srcArt) = dss.vat.urns(srcIlk, srcPsm);
             require(srcIlkArt == srcArt, "DssLitePsmInit/src-ilk-urn-art-mismatch");
             require(srcInk == srcArt, "DssLitePsmInit/src-ink-art-mismatch");
         }
-
-        (address pip,) = dss.spotter.ilks(srcIlk);
-        require(uint256(PipLike(pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
 
         // 0. Wire `litePsm` and `pocket`.
         DssPocketLike(inst.pocket).hope(inst.litePsm);
@@ -118,8 +120,12 @@ library DssLitePsmInit {
         dss.vat.init(ilk);
         dss.jug.init(ilk);
         dss.spotter.file(ilk, "mat", 1 * RAY);
-        dss.spotter.file(ilk, "pip", pip);
-        dss.spotter.poke(ilk);
+        {
+            (address pip,) = dss.spotter.ilks(srcIlk);
+            require(uint256(PipLike(pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
+            dss.spotter.file(ilk, "pip", pip);
+            dss.spotter.poke(ilk);
+        }
 
         // 2. Set interim params to accommodate the new PSM.
         {
@@ -151,7 +157,7 @@ library DssLitePsmInit {
         {
             // Notice that we enforce that `srcInk == srcArt`.
             int256 dart = -_int256(srcArt);
-            dss.vat.grab(srcIlk, cfg.srcPsm, address(this), address(this), dart, dart);
+            dss.vat.grab(srcIlk, srcPsm, address(this), address(this), dart, dart);
         }
 
         // 4.2. Transfer the grabbed collateral to the executing contract.
@@ -195,6 +201,6 @@ library DssLitePsmInit {
         DssPocketLike(inst.pocket).rely(address(dss.esm));
 
         // 9. Add `litePsm` to the chainlog.
-        dss.chainlog.setAddress(cfg.chainlogKey, inst.litePsm);
+        dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
     }
 }
