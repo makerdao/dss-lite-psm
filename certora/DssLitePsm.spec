@@ -1060,3 +1060,91 @@ rule assetsGreaterOrEqualArt(method f) {
     // assert invariant holds after
     assert daiBalanceOfPsmAfter + gemBalanceOfPocketAfter * to18ConversionFactor >= vatUrnPsmArtAfter;
 }
+
+// sellGem with tin as 0 has same effects as sellGemNoFee
+rule sellGemEquivalence() {
+    env e;
+
+    address usr;
+    uint256 gemAmt;
+
+    mathint tin = tin();
+    require tin == 0;
+
+    storage initial = lastStorage;
+
+    sellGem(e, usr, gemAmt);
+
+    storage afterSell = lastStorage;
+
+    sellGemNoFee(e, usr, gemAmt) at initial;
+
+    storage afterSellNoFee = lastStorage;
+
+    assert afterSell[currentContract] == afterSellNoFee[currentContract], "psm storage different";
+    assert afterSell[gem] == afterSellNoFee[gem], "gem storage different";
+    assert afterSell[dai] == afterSellNoFee[dai], "dai storage different";
+}
+
+// buyGem with tout as 0 has same effects as buyGemNoFee
+rule buyGemEquivalence() {
+    env e;
+
+    address usr;
+    uint256 gemAmt;
+
+    mathint tout = tout();
+    require tout == 0;
+
+    storage initial = lastStorage;
+
+    buyGem(e, usr, gemAmt);
+
+    storage afterBuy = lastStorage;
+
+    buyGemNoFee(e, usr, gemAmt) at initial;
+
+    storage afterBuyNoFee = lastStorage;
+
+    assert afterBuy[currentContract] == afterBuyNoFee[currentContract], "psm storage different";
+    assert afterBuy[gem] == afterBuyNoFee[gem], "gem storage different";
+    assert afterBuy[dai] == afterBuyNoFee[dai], "dai storage different";
+}
+`
+// if fill is possible trim is not possible and vice-versa
+rule fillOrTrim() {
+    env e;
+
+    storage initial = lastStorage;
+
+    fill@withrevert(e);
+
+    bool fillSucceed = !lastReverted;
+
+    trim@withrevert(e) at initial;
+
+    bool trimSucceed = !lastReverted;
+
+    assert fillSucceed => !trimSucceed;
+    assert trimSucceed => !fillSucceed;
+}
+
+// fill() injects rush()
+rule fillsRush() {
+    env e;
+
+    mathint rushed = rush();
+    mathint filled = fill(e);
+
+    assert rushed > 0 && rushed == filled;
+}
+
+// trim removes gush()
+rule trimsGush() {
+    env e;
+
+    mathint gushed = gush();
+    mathint trimmed = trim(e);
+
+    assert gushed > 0 && gushed == trimmed;
+}
