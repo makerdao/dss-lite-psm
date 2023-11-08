@@ -272,15 +272,17 @@ contract DssLitePsm {
      * @dev Swapping fees may not apply due to rounding errors for small swaps where
      *      `gemAmt < 10**gem.decimals() / tin` or
      *      `gemAmt < 10**gem.decimals() / tout`.
+     * @dev Setting `tin` or `tout` to `type(uint256).max` effectively disables `sellGem` and `buyGem` respectively,
+     *      due to overflow errors that will occur when trying to swap any value.
      * @param what The changed parameter name. ["tin", "tout", "buf"].
      * @param data The new value of the parameter.
      */
     function file(bytes32 what, uint256 data) external auth {
         if (what == "tin") {
-            require(data <= WAD, "DssLitePsm/tin-out-of-range");
+            require(data == type(uint256).max || data <= WAD, "DssLitePsm/tin-out-of-range");
             tin = data;
         } else if (what == "tout") {
-            require(data <= WAD, "DssLitePsm/tout-out-of-range");
+            require(data == type(uint256).max || data <= WAD, "DssLitePsm/tout-out-of-range");
             tout = data;
         } else if (what == "buf") {
             buf = data;
@@ -297,12 +299,15 @@ contract DssLitePsm {
 
     /**
      * @notice Function that swaps `gem` into Dai.
+     * @dev Reverts if `tin` is set to `type(uint256).max`.
      * @param usr The destination of the bought Dai.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
      * @return daiOutWad The amount of Dai bought.
      */
     function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
-        daiOutWad = _sellGem(usr, gemAmt, tin);
+        uint256 tin_ = tin;
+        require(tin_ < type(uint256).max, "DssLitePsm/sell-gem-disabled");
+        daiOutWad = _sellGem(usr, gemAmt, tin_);
     }
 
     /**
@@ -328,7 +333,7 @@ contract DssLitePsm {
         uint256 fee;
         if (tin_ > 0) {
             fee = daiOutWad * tin_ / WAD;
-            // Since `tin_` is bounded to WAD, this can never underflow.
+            // At this point, `tin_` cannot be larger than `1 WAD`, so an overflow is not possible.
             unchecked {
                 daiOutWad -= fee;
             }
@@ -343,12 +348,15 @@ contract DssLitePsm {
 
     /**
      * @notice Function that swaps Dai into `gem`.
+     * @dev Reverts if `tout` is set to `type(uint256).max`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
      * @return daiInWad The amount of Dai required to sell.
      */
     function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
-        daiInWad = _buyGem(usr, gemAmt, tout);
+        uint256 tout_ = tout;
+        require(tout_ < type(uint256).max, "DssLitePsm/buy-gem-disabled");
+        daiInWad = _buyGem(usr, gemAmt, tout_);
     }
 
     /**

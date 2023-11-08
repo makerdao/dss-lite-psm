@@ -29,14 +29,14 @@ contract DssLitePsmDeployScript is Script {
     string constant NAME = "dss-lite-psm-deploy";
     string config;
 
-    address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
-    DssInstance dss = MCD.loadFromChainlog(CHANGELOG);
+    address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
+    DssInstance dss = MCD.loadFromChainlog(CHAINLOG);
     address pauseProxy = dss.chainlog.getAddress("MCD_PAUSE_PROXY");
     string ilkStr;
     bytes32 ilk;
     bytes32 gemId;
     address gem;
-    DssLitePsmInstance contracts;
+    DssLitePsmInstance inst;
 
     function run() external {
         config = ScriptTools.loadConfig();
@@ -48,10 +48,11 @@ contract DssLitePsmDeployScript is Script {
 
         vm.startBroadcast();
 
-        contracts = DssLitePsmDeploy.deploy(
+        inst = DssLitePsmDeploy.deploy(
             DssLitePsmDeployParams({
                 deployer: msg.sender,
                 owner: pauseProxy,
+                chainlog: CHAINLOG,
                 ilk: ilk,
                 gem: gem,
                 daiJoin: address(dss.daiJoin)
@@ -60,8 +61,9 @@ contract DssLitePsmDeployScript is Script {
 
         vm.stopBroadcast();
 
-        ScriptTools.exportContract(NAME, "litePsm", contracts.litePsm);
-        ScriptTools.exportContract(NAME, "pocket", contracts.pocket);
+        ScriptTools.exportContract(NAME, "litePsm", inst.litePsm);
+        ScriptTools.exportContract(NAME, "pocket", inst.pocket);
+        ScriptTools.exportContract(NAME, "mom", inst.mom);
         ScriptTools.exportContract(NAME, "gem", gem);
         ScriptTools.exportValue(NAME, "ilk", ilkStr);
     }

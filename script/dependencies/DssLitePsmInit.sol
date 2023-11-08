@@ -22,6 +22,7 @@ struct DssLitePsmInitConfig {
     bytes32 srcPsmKey;
     bytes32 dstPsmKey;
     bytes32 dstPocketKey;
+    bytes32 psmMomKey;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -40,6 +41,11 @@ interface DssLitePsmLike {
     function rely(address) external;
     function sellGem(address, uint256) external returns (uint256);
     function to18ConversionFactor() external view returns (uint256);
+}
+
+interface DssLitePsmMomLike {
+    function setAuthority(address) external;
+    function add(bytes32) external;
 }
 
 interface DssPocketLike {
@@ -204,8 +210,15 @@ library DssLitePsmInit {
         // 7. Fill `litePsm` so there is liquidity available immediately.
         DssLitePsmLike(inst.litePsm).fill();
 
-        // 8. Add `litePsm` and `pocket` to the chainlog.
+        // 8. Rely `mom` on `litePsm`
+        DssLitePsmLike(inst.litePsm).rely(inst.mom);
+
+        // 9. Set the chief as authority for `mom`.
+        DssLitePsmMomLike(inst.mom).setAuthority(dss.chainlog.getAddress("MCD_ADM"));
+
+        // 10. Add `litePsm`, `mom` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
+        dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
         dss.chainlog.setAddress(cfg.dstPocketKey, inst.pocket);
     }
 }
