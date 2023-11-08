@@ -15,7 +15,7 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity ^0.8.16;
 
-import {DssInstance, DssIlkInstance} from "dss-test/MCD.sol";
+import {DssInstance} from "dss-test/MCD.sol";
 import {DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
 
 struct DssLitePsmInitConfig {
