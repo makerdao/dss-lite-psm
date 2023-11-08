@@ -48,8 +48,9 @@ interface DaiJoinLike {
  * @dev A few assumptions are made:
  *      1. There are no other urns for the same `ilk`
  *      2. Stability fee is always zero for the `ilk`
- *      3. The `spot` price for gem is always 1.
- *      4. This contract can freely transfer `gem` on behalf of `pocket`.
+ *      3. The `spot` price for gem is always 1 (`10**27`).
+ *      4. The `spotter.par` (Dai parity) is always 1 (`10**27`).
+ *      5. This contract can freely transfer `gem` on behalf of `pocket`.
  */
 contract DssLitePsm {
     /// @notice Collateral type identifier.
