@@ -144,7 +144,11 @@ library DssLitePsmInit {
 
         // 3.1. Add unlimited virtual collateral to `litePsm`.
         {
-            int256 vink = type(int256).max / _int256(RAY);
+            // Set `ink` to the largest value that won't cause an overflow for `ink * spot`.
+            // Notice that `litePsm` assumes that:
+            //   a. `spotter.par == RAY`
+            //   b. `vat.ilks[ilk].spot == RAY`
+            int256 vink = int256(type(uint256).max / RAY);
             dss.vat.slip(ilk, inst.litePsm, vink);
             dss.vat.grab(ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
         }
