@@ -53,7 +53,7 @@ contract DssLitePsmInitTest is DssTest {
     AutoLineLike autoLine;
     DssLitePsm litePsm;
 
-    function _setUp() public {
+    function setUp() public {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(CHANGELOG);
         pause = dss.chainlog.getAddress("MCD_PAUSE");
@@ -99,7 +99,6 @@ contract DssLitePsmInitTest is DssTest {
     }
 
     function testOnboarding() public {
-        _setUp();
         uint256 pglobalLine = dss.vat.Line();
         (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, srcPsm);
