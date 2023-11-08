@@ -98,7 +98,7 @@ contract DssLitePsmInitTest is DssTest {
         vm.label(srcPsm, "PsmUsdc");
     }
 
-    function testOnboarding() public {
+    function testLitePsmOnboarding() public {
         uint256 pglobalLine = dss.vat.Line();
         (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, srcPsm);
