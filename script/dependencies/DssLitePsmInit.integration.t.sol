@@ -17,7 +17,8 @@ pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams} from "./DssLitePsmDeploy.sol";
+import {DssLitePsmInstance} from "./DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "./DssLitePsmInit.sol";
 
 interface ProxyLike {

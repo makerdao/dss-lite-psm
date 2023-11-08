@@ -16,7 +16,7 @@
 pragma solidity ^0.8.16;
 
 import {DssInstance} from "dss-test/MCD.sol";
-import {DssLitePsmInstance} from "./DssLitePsmDeploy.sol";
+import {DssLitePsmInstance} from "./DssLitePsmInstance.sol";
 
 struct DssLitePsmInitConfig {
     bytes32 srcPsmKey;
