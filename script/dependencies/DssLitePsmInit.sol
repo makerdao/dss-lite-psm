@@ -60,7 +60,6 @@ interface DssLitePsmLike {
 
 interface DssLitePsmMomLike {
     function setAuthority(address) external;
-    function add(bytes32) external;
 }
 
 interface DssPocketLike {
