@@ -373,20 +373,32 @@ rule sellGemNoFee(address usr, uint256 gemAmt) {
     require pocket != e.msg.sender;
     mathint to18ConversionFactor = to18ConversionFactor();
 
+    bytes32 ilk = ilk();
+
+    mathint a; mathint vatUrnPsmArtBefore;
+    a, vatUrnPsmArtBefore = vat.urns(ilk, currentContract);
+
     mathint daiBalanceOfUsrBefore = dai.balanceOf(usr);
     mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
     mathint gemBalanceOfSenderBefore = gem.balanceOf(e.msg.sender);
     mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);
     require gemBalanceOfSenderBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
 
+    mathint maxCutBefore = daiBalanceOfPsmBefore + gemBalanceOfPocketBefore * to18ConversionFactor - vatUrnPsmArtBefore;
+
     mathint calcDaiOutWad = gemAmt * to18ConversionFactor;
 
     mathint daiOutWad = sellGemNoFee(e, usr, gemAmt);
+
+    mathint vatUrnPsmArtAfter;
+    a, vatUrnPsmArtAfter = vat.urns(ilk, currentContract);
 
     mathint daiBalanceOfUsrAfter = dai.balanceOf(usr);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
     mathint gemBalanceOfSenderAfter = gem.balanceOf(e.msg.sender);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
+
+    mathint maxCutAfter = daiBalanceOfPsmAfter + gemBalanceOfPocketAfter * to18ConversionFactor - vatUrnPsmArtAfter;
 
     assert daiOutWad == calcDaiOutWad, "sellGemNoFee did not return the expected daiOutWad";
     assert gemBalanceOfSenderAfter == gemBalanceOfSenderBefore - gemAmt, "sellGemNoFee did not decrease gem.balanceOf(sender) by gemAmt";
@@ -394,6 +406,8 @@ rule sellGemNoFee(address usr, uint256 gemAmt) {
     assert usr != currentContract => daiBalanceOfUsrAfter == daiBalanceOfUsrBefore + daiOutWad, "sellGemNoFee did not increase dai.balanceOf(usr) by daiOutWad";
     assert usr != currentContract => daiBalanceOfPsmAfter == daiBalanceOfPsmBefore - daiOutWad, "sellGemNoFee did not decrease dai.balanceOf(psm) by daiOutWad";
     assert usr == currentContract => daiBalanceOfUsrAfter == daiBalanceOfUsrBefore, "sellGemNoFee did not keep the same dai.balanceOf(usr/psm)";
+    assert usr != currentContract => maxCutAfter == maxCutBefore, "sellGemNoFee did not keep unchanged maxCut";
+    assert usr == currentContract => maxCutAfter == maxCutBefore + daiOutWad, "sellGemNoFee did not increase maxCut by daiOutWad";
 }
 
 // Verify revert rules on sellGemNoFee
@@ -524,20 +538,32 @@ rule buyGemNoFee(address usr, uint256 gemAmt) {
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
 
+    bytes32 ilk = ilk();
+
+    mathint a; mathint vatUrnPsmArtBefore;
+    a, vatUrnPsmArtBefore = vat.urns(ilk, currentContract);
+
     mathint daiBalanceOfSenderBefore = dai.balanceOf(e.msg.sender);
     mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
     mathint gemBalanceOfUsrBefore = gem.balanceOf(usr);
     mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);
     require gemBalanceOfUsrBefore + gemBalanceOfPocketBefore <= to_mathint(gem.totalSupply());
 
+    mathint maxCutBefore = daiBalanceOfPsmBefore + gemBalanceOfPocketBefore * to18ConversionFactor - vatUrnPsmArtBefore;
+
     mathint calcDaiInWad = gemAmt * to18ConversionFactor;
 
     mathint daiInWad = buyGemNoFee(e, usr, gemAmt);
+
+    mathint vatUrnPsmArtAfter;
+    a, vatUrnPsmArtAfter = vat.urns(ilk, currentContract);
 
     mathint daiBalanceOfSenderAfter = dai.balanceOf(e.msg.sender);
     mathint daiBalanceOfPsmAfter = dai.balanceOf(currentContract);
     mathint gemBalanceOfUsrAfter = gem.balanceOf(usr);
     mathint gemBalanceOfPocketAfter = gem.balanceOf(pocket);
+
+    mathint maxCutAfter = daiBalanceOfPsmAfter + gemBalanceOfPocketAfter * to18ConversionFactor - vatUrnPsmArtAfter;
 
     assert daiInWad == calcDaiInWad, "buyGemNoFee did not return the expected daiInWad";
     assert daiBalanceOfSenderAfter == daiBalanceOfSenderBefore - daiInWad, "buyGemNoFee did not decrease dai.balanceOf(sender) by daiInWad";
@@ -545,6 +571,8 @@ rule buyGemNoFee(address usr, uint256 gemAmt) {
     assert usr != pocket => gemBalanceOfUsrAfter == gemBalanceOfUsrBefore + gemAmt, "buyGemNoFee did not increase gem.balanceOf(usr) by gemAmt";
     assert usr != pocket => gemBalanceOfPocketAfter == gemBalanceOfPocketBefore - gemAmt, "buyGemNoFee did not decrease gem.balanceOf(pocket) by gemAmt";
     assert usr == pocket => gemBalanceOfUsrAfter == gemBalanceOfUsrBefore, "buyGemNoFee did not keep unchanged gem.balanceOf(usr/pocket)";
+    assert usr != pocket => maxCutAfter == maxCutBefore, "buyGemNoFee did not keep unchanged maxCut";
+    assert usr == pocket => maxCutAfter == maxCutBefore + daiInWad, "buyGemNoFee did not increase maxCut by daiInWad";
 }
 
 // Verify revert rules on buyGemNoFee
@@ -1025,8 +1053,8 @@ rule assetsGreaterOrEqualArt(method f) {
     address pocket = pocket();
     mathint to18ConversionFactor = to18ConversionFactor();
 
-    mathint aBefore; mathint vatUrnPsmArtBefore;
-    aBefore, vatUrnPsmArtBefore = vat.urns(ilk, currentContract);
+    mathint a; mathint vatUrnPsmArtBefore;
+    a, vatUrnPsmArtBefore = vat.urns(ilk, currentContract);
 
     mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
     mathint daiBalanceOfSenderBefore = dai.balanceOf(e.msg.sender);
