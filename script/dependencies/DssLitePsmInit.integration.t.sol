@@ -30,6 +30,22 @@ interface AutoLineLike {
     function ilks(bytes32) external view returns (uint256 line, uint256 gap, uint48 ttl, uint48 last, uint48 lastInc);
 }
 
+interface IlkRegistryLike {
+    function info(bytes32 ilk)
+        external
+        view
+        returns (
+            string memory name,
+            string memory symbol,
+            uint256 class,
+            uint256 dec,
+            address gem,
+            address pip,
+            address join,
+            address xlip
+        );
+}
+
 contract InitCaller {
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) external {
         DssLitePsmInit.init(dss, inst, cfg);
@@ -46,14 +62,16 @@ contract DssLitePsmInitTest is DssTest {
     bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
+
+    DssInstance dss;
     address pause;
     address srcPsm;
     address chief;
+    IlkRegistryLike reg;
     ProxyLike pauseProxy;
-    DssInstance dss;
+    AutoLineLike autoLine;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig cfg;
-    AutoLineLike autoLine;
     DssLitePsm litePsm;
     DssLitePsmMom mom;
     InitCaller caller;
@@ -65,6 +83,7 @@ contract DssLitePsmInitTest is DssTest {
         MCD.giveAdminAccess(dss);
 
         pause = dss.chainlog.getAddress("MCD_PAUSE");
+        reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
@@ -218,6 +237,39 @@ contract DssLitePsmInitTest is DssTest {
         // `mom` is ward on `litePsm`
         {
             assertEq(litePsm.wards(inst.mom), 1, "after: `mom` not ward of `litePsm`");
+        }
+
+        // `litePsm` info is added to IlkRegistry
+        {
+            (
+                string memory srcName,
+                string memory srcSymbol,
+                uint256 srcClass,
+                uint256 srcDec,
+                address srcGem,
+                address srcPip,
+                ,
+            ) = reg.info(SRC_ILK);
+
+            (
+                string memory dstName,
+                string memory dstSymbol,
+                uint256 dstClass,
+                uint256 dstDec,
+                address dstGem,
+                address dstPip,
+                address dstGemJoin,
+                address dstXlip
+            ) = reg.info(DST_ILK);
+
+            assertEq(dstName, srcName, "after: reg name mismatch");
+            assertEq(dstSymbol, srcSymbol, "after: reg symbol mismatch");
+            assertEq(dstClass, srcClass, "after: reg class mismatch");
+            assertEq(dstDec, srcDec, "after: reg dec mismatch");
+            assertEq(dstGem, srcGem, "after: reg gem mismatch");
+            assertEq(dstPip, srcPip, "after: reg pip mismatch");
+            assertEq(dstGemJoin, address(0), "after: invalid reg gemJoin");
+            assertEq(dstXlip, address(0), "after: invalid reg xlip");
         }
 
         // `litePsm`, `mom` and `pocket` are present in Chainlog
