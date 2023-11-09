@@ -30,6 +30,21 @@ struct DssLitePsmInitConfig {
     uint256 ttl;
 }
 
+// Required to avoid "stack too deep" errors
+struct SrcPsm {
+    bytes32 ilk;
+    address psm;
+    uint256 line;
+    uint256 art;
+    address gemJoin;
+    address gem;
+    address pip;
+    string name;
+    string symbol;
+    uint256 class;
+    uint256 dec;
+}
+
 interface DssLitePsmLike {
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
@@ -93,20 +108,6 @@ interface IlkRegistryLike {
         string memory _name,
         string memory _symbol
     ) external;
-}
-
-struct SrcPsm {
-    bytes32 ilk;
-    address psm;
-    uint256 line;
-    uint256 art;
-    address gemJoin;
-    address gem;
-    address pip;
-    string name;
-    string symbol;
-    uint256 class;
-    uint256 dec;
 }
 
 library DssLitePsmInit {
