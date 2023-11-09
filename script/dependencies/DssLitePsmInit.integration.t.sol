@@ -29,6 +29,22 @@ interface AutoLineLike {
     function ilks(bytes32) external view returns (uint256 line, uint256 gap, uint48 ttl, uint48 last, uint48 lastInc);
 }
 
+interface IlkRegistryLike {
+    function info(bytes32 ilk)
+        external
+        view
+        returns (
+            string memory name,
+            string memory symbol,
+            uint256 class,
+            uint256 dec,
+            address gem,
+            address pip,
+            address join,
+            address xlip
+        );
+}
+
 contract InitCaller {
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) external {
         DssLitePsmInit.init(dss, inst, cfg);
@@ -44,20 +60,22 @@ contract DssLitePsmInitTest is DssTest {
     bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
+    DssInstance dss;
     address pause;
     address srcPsm;
+    IlkRegistryLike reg;
     ProxyLike pauseProxy;
-    DssInstance dss;
+    AutoLineLike autoLine;
+    DssLitePsm litePsm;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig cfg;
     InitCaller caller;
-    AutoLineLike autoLine;
-    DssLitePsm litePsm;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(CHANGELOG);
         pause = dss.chainlog.getAddress("MCD_PAUSE");
+        reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
         srcPsm = dss.chainlog.getAddress(SRC_PSM_KEY);
@@ -190,6 +208,39 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(ttl, uint48(cfg.ttl), "after: AutoLine invalid ttl");
             assertEq(last, block.number, "after: AutoLine invalid last");
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
+        }
+
+        // `litePsm` info is added to IlkRegistry
+        {
+            (
+                string memory srcName,
+                string memory srcSymbol,
+                uint256 srcClass,
+                uint256 srcDec,
+                address srcGem,
+                address srcPip,
+                ,
+            ) = reg.info(SRC_ILK);
+
+            (
+                string memory dstName,
+                string memory dstSymbol,
+                uint256 dstClass,
+                uint256 dstDec,
+                address dstGem,
+                address dstPip,
+                address dstGemJoin,
+                address dstXlip
+            ) = reg.info(DST_ILK);
+
+            assertEq(dstName, srcName, "after: reg name mismatch");
+            assertEq(dstSymbol, srcSymbol, "after: reg symbol mismatch");
+            assertEq(dstClass, srcClass, "after: reg class mismatch");
+            assertEq(dstDec, srcDec, "after: reg dec mismatch");
+            assertEq(dstGem, srcGem, "after: reg gem mismatch");
+            assertEq(dstPip, srcPip, "after: reg pip mismatch");
+            assertEq(dstGemJoin, address(0), "after: invalid reg gemJoin");
+            assertEq(dstXlip, address(0), "after: invalid reg xlip");
         }
 
         // `litePsm` and `pocket` are present in Chainlog
