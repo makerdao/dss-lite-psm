@@ -39,8 +39,6 @@ contract DssLitePsmMom {
     address public owner;
     /// @notice The authority to delegate authentication to.
     address public authority;
-    /// @notice The chainlog keys for `DssLitePsm` instances controlled by this contract. `instances[address]`
-    mapping(bytes32 => uint256) public keys;
 
     /**
      * @notice The owner of this contract was set.
