@@ -70,7 +70,9 @@ contract DssLitePsmMom {
     }
 
     /**
-     * @notice Returns whether the function identified by `sig` can be called by `src`.
+     * @notice Returns whether or not the function identified by `sig` can be called by `src`.
+     * @param src The caller address.
+     * @param sig The selector of the function being called.
      */
     function isAuthorized(address src, bytes4 sig) internal view returns (bool) {
         if (src == address(this)) {
