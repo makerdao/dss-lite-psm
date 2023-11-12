@@ -25,7 +25,6 @@ struct DssLitePsmDeployParams {
     address deployer;
     address owner;
     bytes32 ilk;
-    address chainlog;
     address gem;
     address daiJoin;
 }
@@ -34,7 +33,7 @@ library DssLitePsmDeploy {
     function deploy(DssLitePsmDeployParams memory p) internal returns (DssLitePsmInstance memory r) {
         r.pocket = address(new DssPocket(p.gem));
         r.litePsm = address(new DssLitePsm(p.ilk, p.gem, p.daiJoin, r.pocket));
-        r.mom = address(new DssLitePsmMom(p.chainlog));
+        r.mom = address(new DssLitePsmMom());
 
         ScriptTools.switchOwner(r.pocket, p.deployer, p.owner);
         ScriptTools.switchOwner(r.litePsm, p.deployer, p.owner);

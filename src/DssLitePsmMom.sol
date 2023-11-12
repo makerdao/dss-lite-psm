@@ -15,10 +15,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 pragma solidity ^0.8.16;
 
-interface ChainlogLike {
-    function getAddress(bytes32) external returns (address);
-}
-
 interface DssLitePsmLike {
     function file(bytes32, uint256) external;
 }
@@ -29,11 +25,14 @@ interface AuthorityLike {
 
 /**
  * @title A mom for `DssLitePsm` instances.
- * @notice Bypass governance delay to set `tin` and `tout` for a `DssLitePsm` instance.
+ * @notice Bypass governance delay to halt `buyGem` or `sellGem` for a `DssLitePsm` instance.
  */
 contract DssLitePsmMom {
-    /// @notice The MakerDAO contract registry.
-    ChainlogLike public immutable chainlog;
+    enum Flow {
+        SELL, // Only `sellGem`
+        BUY, // Only `buyGem`
+        BOTH // Both at the same time
+    }
 
     /// @notice The owner of this contract.
     address public owner;
@@ -51,11 +50,11 @@ contract DssLitePsmMom {
      */
     event SetAuthority(address indexed _authority);
     /**
-     * @notice A contract parameter was updated.
-     * @param what The changed parameter name. ["tin", "tout"].
-     * @param data The new value of the parameter.
+     * @notice A PSM inflow or outflow was halted.
+     * @param psm The PSM address.
+     * @param what The halted flow. ["tin", "tout"].
      */
-    event File(bytes32 indexed what, uint256 data);
+    event Halt(address indexed psm, Flow indexed what);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "DssLitePsmMom/not-owner");
@@ -84,12 +83,7 @@ contract DssLitePsmMom {
         }
     }
 
-    /**
-     * @param chainlog_ The MakerDAO contract registry.
-     */
-    constructor(address chainlog_) {
-        chainlog = ChainlogLike(chainlog_);
-
+    constructor() {
         owner = msg.sender;
         emit SetOwner(msg.sender);
     }
@@ -120,9 +114,18 @@ contract DssLitePsmMom {
       Governance actions without delay
     //////////////////////////////////*/
 
-    function file(bytes32 key, bytes32 what, uint256 data) external auth {
-        require(what == "tin" || what == "tout", "DssLitePsmMom/file-unrecognized-param");
-        DssLitePsmLike(chainlog.getAddress(key)).file(what, data);
-        emit File(what, data);
+    /**
+     * @notice Halts either inflow or outflow of gems from the PSM.
+     * @param psm The PSM address.
+     * @param what The halted flow. [0 = `sellGem`, 1 = `buyGem`, 2 = `both`]
+     */
+    function halt(address psm, Flow what) external auth {
+        if (what == Flow.SELL || what == Flow.BOTH) {
+            DssLitePsmLike(psm).file("tin", type(uint256).max);
+        }
+        if (what == Flow.BUY || what == Flow.BOTH) {
+            DssLitePsmLike(psm).file("tout", type(uint256).max);
+        }
+        emit Halt(psm, what);
     }
 }

@@ -95,7 +95,6 @@ contract DssLitePsmInitTest is DssTest {
             DssLitePsmDeployParams({
                 deployer: address(this),
                 owner: address(pauseProxy),
-                chainlog: address(dss.chainlog),
                 ilk: DST_ILK,
                 gem: dss.chainlog.getAddress(GEM_KEY),
                 daiJoin: address(dss.daiJoin)

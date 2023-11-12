@@ -52,7 +52,6 @@ contract DssLitePsmDeployScript is Script {
             DssLitePsmDeployParams({
                 deployer: msg.sender,
                 owner: pauseProxy,
-                chainlog: CHAINLOG,
                 ilk: ilk,
                 gem: gem,
                 daiJoin: address(dss.daiJoin)

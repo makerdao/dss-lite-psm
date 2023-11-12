@@ -75,7 +75,6 @@ contract DssLitePsmMomTest is DssTest {
             DssLitePsmDeployParams({
                 deployer: address(this),
                 owner: address(pauseProxy),
-                chainlog: CHAINLOG,
                 ilk: DST_ILK,
                 gem: dss.chainlog.getAddress("USDC"),
                 daiJoin: address(dss.daiJoin)
@@ -142,32 +141,34 @@ contract DssLitePsmMomTest is DssTest {
         mom.setAuthority(address(0x1234));
     }
 
-    function doFile(address sender, bytes32 what, uint256 data) internal {
-        require(what == "tin" || what == "tout", "doFile: invalid parameter");
-
+    function doHalt(address sender, DssLitePsmMom.Flow what) internal {
         vm.expectEmit(true, true, true, true);
-        emit File(what, data);
+        emit Halt(address(litePsm), what);
 
         vm.prank(sender);
-        mom.file(cfg.dstPsmKey, what, data);
+        mom.halt(address(litePsm), what);
 
-        if (what == "tin") {
-            assertEq(litePsm.tin(), data, "doFile: tin not set");
-        } else {
-            assertEq(litePsm.tout(), data, "doFile: tout not set");
+        if (what == DssLitePsmMom.Flow.SELL || what == DssLitePsmMom.Flow.BOTH) {
+            assertEq(litePsm.tin(), type(uint256).max, "doHalt: tin not set");
+        }
+        if (what == DssLitePsmMom.Flow.BUY || what == DssLitePsmMom.Flow.BOTH) {
+            assertEq(litePsm.tout(), type(uint256).max, "doHalt: tout not set");
         }
     }
 
-    function testFileFromOwner() public {
-        doFile(address(pauseProxy), "tin", type(uint256).max);
-        doFile(address(pauseProxy), "tout", type(uint256).max);
+    function testHaltFromOwner() public {
+        doHalt(address(pauseProxy), DssLitePsmMom.Flow.SELL);
+        doHalt(address(pauseProxy), DssLitePsmMom.Flow.BUY);
+        doHalt(address(pauseProxy), DssLitePsmMom.Flow.BOTH);
     }
 
-    function testFileFromHat() public {
-        doFile(address(chief.hat()), "tin", type(uint256).max);
-        doFile(address(chief.hat()), "tout", type(uint256).max);
+    function testHaltFromHat() public {
+        doHalt(address(chief.hat()), DssLitePsmMom.Flow.SELL);
+        doHalt(address(chief.hat()), DssLitePsmMom.Flow.BUY);
+        doHalt(address(chief.hat()), DssLitePsmMom.Flow.BOTH);
     }
 
     event SetOwner(address indexed _owner);
     event SetAuthority(address indexed _authority);
+    event Halt(address indexed psm, DssLitePsmMom.Flow indexed what);
 }
