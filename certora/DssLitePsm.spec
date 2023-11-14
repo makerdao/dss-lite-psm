@@ -102,9 +102,7 @@ rule rely_revert(address usr) {
     bool revert1 = e.msg.value > 0;
     bool revert2 = wardsSender != 1;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting deny
@@ -136,9 +134,7 @@ rule deny_revert(address usr) {
     bool revert1 = e.msg.value > 0;
     bool revert2 = wardsSender != 1;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting kiss
@@ -170,9 +166,7 @@ rule kiss_revert(address usr) {
     bool revert1 = e.msg.value > 0;
     bool revert2 = wardsSender != 1;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting diss
@@ -204,9 +198,7 @@ rule diss_revert(address usr) {
     bool revert1 = e.msg.value > 0;
     bool revert2 = wardsSender != 1;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting file
@@ -232,10 +224,7 @@ rule file_address_revert(bytes32 what, address data) {
     bool revert2 = wardsSender != 1;
     bool revert3 = what != to_bytes32(0x766f770000000000000000000000000000000000000000000000000000000000);
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert lastReverted => revert1 || revert2 || revert3, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting file
@@ -283,12 +272,8 @@ rule file_uint256_revert(bytes32 what, uint256 data) {
                    what == to_bytes32(0x746f757400000000000000000000000000000000000000000000000000000000)) &&
                    to_mathint(data) > WAD();
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert revert4 => lastReverted, "revert4 failed";
-    assert lastReverted => revert1 || revert2 || revert3 ||
-                           revert4, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3 ||
+                            revert4, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting sellGem
@@ -355,14 +340,8 @@ rule sellGem_revert(address usr, uint256 gemAmt) {
     bool revert5 = gemBalanceOfSender < to_mathint(gemAmt);
     bool revert6 = daiBalanceOfPsm < daiOutWad;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert revert4 => lastReverted, "revert4 failed";
-    assert revert5 => lastReverted, "revert5 failed";
-    assert revert6 => lastReverted, "revert6 failed";
-    assert lastReverted => revert1 || revert2 || revert3 ||
-                           revert4 || revert5 || revert6, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3 ||
+                            revert4 || revert5 || revert6, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting sellGemNoFee
@@ -437,14 +416,8 @@ rule sellGemNoFee_revert(address usr, uint256 gemAmt) {
     bool revert5 = gemBalanceOfSender < to_mathint(gemAmt);
     bool revert6 = daiBalanceOfPsm < daiOutWad;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert revert4 => lastReverted, "revert4 failed";
-    assert revert5 => lastReverted, "revert5 failed";
-    assert revert6 => lastReverted, "revert6 failed";
-    assert lastReverted => revert1 || revert2 || revert3 ||
-                           revert4 || revert5 || revert6, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3 ||
+                            revert4 || revert5 || revert6, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting buyGem
@@ -517,16 +490,9 @@ rule buyGem_revert(address usr, uint256 gemAmt) {
     bool revert6 = gemAllowancePocketPsm < to_mathint(gemAmt);
     bool revert7 = gemBalanceOfPocket < to_mathint(gemAmt);
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert revert4 => lastReverted, "revert4 failed";
-    assert revert5 => lastReverted, "revert5 failed";
-    assert revert6 => lastReverted, "revert6 failed";
-    assert revert7 => lastReverted, "revert7 failed";
-    assert lastReverted => revert1 || revert2 || revert3 ||
-                           revert4 || revert5 || revert6 ||
-                           revert7, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3 ||
+                            revert4 || revert5 || revert6 ||
+                            revert7, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting buyGemNoFee
@@ -607,16 +573,9 @@ rule buyGemNoFee_revert(address usr, uint256 gemAmt) {
     bool revert6 = gemAllowancePocketPsm < to_mathint(gemAmt);
     bool revert7 = gemBalanceOfPocket < to_mathint(gemAmt);
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert revert4 => lastReverted, "revert4 failed";
-    assert revert5 => lastReverted, "revert5 failed";
-    assert revert6 => lastReverted, "revert6 failed";
-    assert revert7 => lastReverted, "revert7 failed";
-    assert lastReverted => revert1 || revert2 || revert3 ||
-                           revert4 || revert5 || revert6 ||
-                           revert7, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3 ||
+                            revert4 || revert5 || revert6 ||
+                            revert7, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting fill
@@ -707,28 +666,12 @@ rule fill_revert() {
     bool revert15 = vatDaiDaiJoin + (wad * RAY()) > max_uint256;
     bool revert16 = daiTotalSupply + wad > max_uint256;
 
-    assert revert1  => lastReverted, "revert1 failed";
-    assert revert2  => lastReverted, "revert2 failed";
-    assert revert3  => lastReverted, "revert3 failed";
-    assert revert4  => lastReverted, "revert4 failed";
-    assert revert5  => lastReverted, "revert5 failed";
-    assert revert6  => lastReverted, "revert6 failed";
-    assert revert7  => lastReverted, "revert7 failed";
-    assert revert8  => lastReverted, "revert8 failed";
-    assert revert9  => lastReverted, "revert9 failed";
-    assert revert10 => lastReverted, "revert10 failed";
-    assert revert11 => lastReverted, "revert11 failed";
-    assert revert12 => lastReverted, "revert12 failed";
-    assert revert13 => lastReverted, "revert13 failed";
-    assert revert14 => lastReverted, "revert14 failed";
-    assert revert15 => lastReverted, "revert15 failed";
-    assert revert16 => lastReverted, "revert16 failed";
-    assert lastReverted => revert1  || revert2  || revert3  ||
-                           revert4  || revert5  || revert6  ||
-                           revert7  || revert8  || revert9  ||
-                           revert10 || revert11 || revert12 ||
-                           revert13 || revert14 || revert15 ||
-                           revert16, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1  || revert2  || revert3  ||
+                            revert4  || revert5  || revert6  ||
+                            revert7  || revert8  || revert9  ||
+                            revert10 || revert11 || revert12 ||
+                            revert13 || revert14 || revert15 ||
+                            revert16, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting trim
@@ -812,21 +755,10 @@ rule trim_revert() {
     bool revert10 = wad * RAY() > max_int256();
     bool revert11 = vatUrnInk * vatIlkSpot > max_uint256;
 
-    assert revert1  => lastReverted, "revert1 failed";
-    assert revert2  => lastReverted, "revert2 failed";
-    assert revert3  => lastReverted, "revert3 failed";
-    assert revert4  => lastReverted, "revert4 failed";
-    assert revert5  => lastReverted, "revert5 failed";
-    assert revert6  => lastReverted, "revert6 failed";
-    assert revert7  => lastReverted, "revert7 failed";
-    assert revert8  => lastReverted, "revert8 failed";
-    assert revert9  => lastReverted, "revert9 failed";
-    assert revert10 => lastReverted, "revert10 failed";
-    assert revert11 => lastReverted, "revert11 failed";
-    assert lastReverted => revert1  || revert2  || revert3  ||
-                           revert4  || revert5  || revert6  ||
-                           revert7  || revert8  || revert9  ||
-                           revert10 || revert11, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1  || revert2  || revert3  ||
+                            revert4  || revert5  || revert6  ||
+                            revert7  || revert8  || revert9  ||
+                            revert10 || revert11, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting chug
@@ -895,18 +827,9 @@ rule chug_revert() {
     bool revert8 = wad * RAY() > max_uint256;
     bool revert9 = vow != daiJoin && vatDaiVow + wad * RAY() > max_uint256;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert revert3 => lastReverted, "revert3 failed";
-    assert revert4 => lastReverted, "revert4 failed";
-    assert revert5 => lastReverted, "revert5 failed";
-    assert revert6 => lastReverted, "revert6 failed";
-    assert revert7 => lastReverted, "revert7 failed";
-    assert revert8 => lastReverted, "revert8 failed";
-    assert revert9 => lastReverted, "revert9 failed";
-    assert lastReverted => revert1 || revert2 || revert3 ||
-                           revert4 || revert5 || revert6 ||
-                           revert7 || revert8 || revert9, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2 || revert3 ||
+                            revert4 || revert5 || revert6 ||
+                            revert7 || revert8 || revert9, "Revert rules failed";
 }
 
 // Verify correct return value comes from rush getter
@@ -951,9 +874,7 @@ rule rush_revert() {
     bool revert1 = vatIlkRate != RAY();
     bool revert2 = gemBalanceOfPocket * to18ConversionFactor + buf > max_uint256;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify correct return value comes from gush getter
@@ -997,9 +918,7 @@ rule gush_revert() {
     bool revert1 = vatIlkRate != RAY();
     bool revert2 = gemBalanceOfPocket * to18ConversionFactor + buf > max_uint256;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify correct return value comes from cut getter
@@ -1039,9 +958,7 @@ rule cut_revert() {
     bool revert1 = daiBalanceOfPsm + gemBalanceOfPocket * to18ConversionFactor > max_uint256;
     bool revert2 = daiBalanceOfPsm + gemBalanceOfPocket * to18ConversionFactor - vatUrnPsmArt < 0;
 
-    assert revert1 => lastReverted, "revert1 failed";
-    assert revert2 => lastReverted, "revert2 failed";
-    assert lastReverted => revert1 || revert2, "Revert rules are not covering all the cases";
+    assert lastReverted <=> revert1 || revert2, "Revert rules failed";
 }
 
 // Verify assets (dai + gem) is always greater or equal to the Art
