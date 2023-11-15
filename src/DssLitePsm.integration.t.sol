@@ -234,9 +234,9 @@ abstract contract DssLitePsmBaseTest is DssTest {
         litePsm.fill();
     }
 
-    function testSellGem_Revert_WhenTinIsMaxUint256() public {
-        litePsm.file("tin", type(uint256).max);
-        vm.expectRevert("DssLitePsm/sell-gem-disabled");
+    function testSellGem_Revert_WhenTinIsSpecialValueHalted() public {
+        litePsm.file("tin", HALTED);
+        vm.expectRevert("DssLitePsm/sell-gem-halted");
         litePsm.sellGem(address(this), 1);
     }
 
@@ -296,9 +296,9 @@ abstract contract DssLitePsmBaseTest is DssTest {
         assertEq(daiBalancePsm, pdaiBalancePsm + daiInWad, "buyGem: invalid cash after buyGem");
     }
 
-    function testBuyGem_Revert_WhenToutIsMaxUint256() public {
-        litePsm.file("tout", type(uint256).max);
-        vm.expectRevert("DssLitePsm/buy-gem-disabled");
+    function testBuyGem_Revert_WhenToutIsSpecialValueHalted() public {
+        litePsm.file("tout", HALTED);
+        vm.expectRevert("DssLitePsm/buy-gem-halted");
         litePsm.buyGem(address(this), 1);
     }
 
@@ -1008,6 +1008,8 @@ abstract contract DssLitePsmBaseTest is DssTest {
         blk += t * 125 / 100;
         vm.roll(blk);
     }
+
+    uint256 HALTED = type(uint256).max;
 
     event Fill(uint256 wad);
     event Trim(uint256 wad);

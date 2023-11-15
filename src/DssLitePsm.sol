@@ -91,6 +91,8 @@ contract DssLitePsm {
     uint256 internal constant RAY = 10 ** 27;
     /// @dev Workaround to explicitly revert with an arithmetic error.
     string internal constant ARITHMETIC_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x11));
+    /// @notice Special value for `tin` and/or `tout` to indicate swaps are halted.
+    uint256 internal constant HALTED = type(uint256).max;
 
     /**
      * @notice `usr` was granted admin access.
@@ -273,17 +275,17 @@ contract DssLitePsm {
      * @dev Swapping fees may not apply due to rounding errors for small swaps where
      *      `gemAmt < 10**gem.decimals() / tin` or
      *      `gemAmt < 10**gem.decimals() / tout`.
-     * @dev Setting `tin` or `tout` to `type(uint256).max` effectively disables `sellGem` and `buyGem` respectively,
-     *      due to overflow errors that will occur when trying to swap any value.
+     * @dev Setting `tin` or `tout` to `type(uint256).max` effectively halts `sellGem` and `buyGem` respectively,
+     *      due to overflow errors that would occur when trying to swap any value.
      * @param what The changed parameter name. ["tin", "tout", "buf"].
      * @param data The new value of the parameter.
      */
     function file(bytes32 what, uint256 data) external auth {
         if (what == "tin") {
-            require(data == type(uint256).max || data <= WAD, "DssLitePsm/tin-out-of-range");
+            require(data == HALTED || data <= WAD, "DssLitePsm/tin-out-of-range");
             tin = data;
         } else if (what == "tout") {
-            require(data == type(uint256).max || data <= WAD, "DssLitePsm/tout-out-of-range");
+            require(data == HALTED || data <= WAD, "DssLitePsm/tout-out-of-range");
             tout = data;
         } else if (what == "buf") {
             buf = data;
@@ -307,7 +309,7 @@ contract DssLitePsm {
      */
     function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
         uint256 tin_ = tin;
-        require(tin_ < type(uint256).max, "DssLitePsm/sell-gem-disabled");
+        require(tin_ != HALTED, "DssLitePsm/sell-gem-halted");
         daiOutWad = _sellGem(usr, gemAmt, tin_);
     }
 
@@ -356,7 +358,7 @@ contract DssLitePsm {
      */
     function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
         uint256 tout_ = tout;
-        require(tout_ < type(uint256).max, "DssLitePsm/buy-gem-disabled");
+        require(tout_ != HALTED, "DssLitePsm/buy-gem-halted");
         daiInWad = _buyGem(usr, gemAmt, tout_);
     }
 
