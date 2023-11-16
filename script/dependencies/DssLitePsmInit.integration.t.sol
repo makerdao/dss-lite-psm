@@ -113,7 +113,7 @@ contract DssLitePsmInitTest is DssTest {
             tin: 0.01 ether,
             tout: 0.01 ether,
             maxLine: 1_000_000_000 * RAD,
-            gap: 50_000_000 * RAD,
+            gap: 100_000_000 * RAD,
             ttl: 8 hours
         });
 
@@ -188,7 +188,7 @@ contract DssLitePsmInitTest is DssTest {
         // Global Line should be adjusted by increasing the new PSM line and reducing the old one
         {
             uint256 globalLine = dss.vat.Line();
-            assertEq(globalLine, pglobalLine - psrcLine + ((psrcArt + cfg.buf) * RAY), "after: invalid Line change");
+            assertEq(globalLine, pglobalLine - psrcLine + psrcArt * RAY + cfg.gap, "after: invalid Line change");
         }
 
         // All collateral and debt has been migrated from the source PSM
@@ -206,7 +206,7 @@ contract DssLitePsmInitTest is DssTest {
             (uint256 ilkArt,,, uint256 line,) = dss.vat.ilks(DST_ILK);
             (uint256 ink, uint256 art) = dss.vat.urns(DST_ILK, inst.litePsm);
             assertEq(ilkArt, psrcIlkArt + cfg.buf, "after: invalid ilk Art");
-            assertEq(line, (psrcArt + cfg.buf) * RAY, "after: invalid line");
+            assertEq(line, psrcArt * RAY + cfg.gap, "after: invalid line");
             assertEq(art, psrcIlkArt + cfg.buf, "after: invalid art");
             // Unlimited virtual ink is set properly
             assertEq(ink, type(uint256).max / RAY, "after: invalid ink");
