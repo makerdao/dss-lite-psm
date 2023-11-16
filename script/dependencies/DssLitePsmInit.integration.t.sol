@@ -62,6 +62,7 @@ contract DssLitePsmInitTest is DssTest {
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
     DssInstance dss;
     address pause;
+    address vow;
     address srcPsm;
     IlkRegistryLike reg;
     ProxyLike pauseProxy;
@@ -75,6 +76,7 @@ contract DssLitePsmInitTest is DssTest {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(CHANGELOG);
         pause = dss.chainlog.getAddress("MCD_PAUSE");
+        vow = dss.chainlog.getAddress("MCD_VOW");
         reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
@@ -106,15 +108,16 @@ contract DssLitePsmInitTest is DssTest {
         });
 
         vm.label(CHANGELOG, "Chainlog");
-        vm.label(address(pauseProxy), "PauseProxy");
         vm.label(pause, "Pause");
+        vm.label(vow, "Vow");
+        vm.label(srcPsm, "PsmUsdc");
+        vm.label(address(pauseProxy), "PauseProxy");
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.jug), "Jug");
         vm.label(address(dss.spotter), "Spotter");
         vm.label(address(dss.dai), "Dai");
         vm.label(address(dss.daiJoin), "DaiJoin");
         vm.label(address(autoLine), "AutoLine");
-        vm.label(srcPsm, "PsmUsdc");
     }
 
     function testLitePsmOnboarding() public {
@@ -165,6 +168,7 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(litePsm.tin(), cfg.tin, "after: invalid tin");
             assertEq(litePsm.tout(), cfg.tout, "after: invalid tout");
             assertEq(litePsm.buf(), cfg.buf, "after: invalid buf");
+            assertEq(litePsm.vow(), vow, "after: invalid vow");
         }
 
         // Global Line should be adjusted by increasing the new PSM line and reducing the old one

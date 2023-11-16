@@ -46,6 +46,7 @@ struct SrcPsm {
 }
 
 interface DssLitePsmLike {
+    function file(bytes32, address) external;
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
     function gem() external view returns (address);
@@ -234,6 +235,7 @@ library DssLitePsmInit {
         DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
         DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
         DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
+        DssLitePsmLike(inst.litePsm).file("vow", dss.chainlog.getAddress("MCD_VOW"));
 
         // 7. Fill `litePsm` so there is liquidity available immediately.
         DssLitePsmLike(inst.litePsm).fill();
