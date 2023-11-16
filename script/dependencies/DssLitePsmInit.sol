@@ -47,13 +47,14 @@ struct SrcPsm {
 }
 
 interface DssLitePsmLike {
-    function rely(address) external;
+    function file(bytes32, address) external;
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
     function gem() external view returns (address);
     function daiJoin() external view returns (address);
     function ilk() external view returns (bytes32);
     function pocket() external view returns (address);
+    function rely(address) external;
     function sellGem(address, uint256) external returns (uint256);
     function to18ConversionFactor() external view returns (uint256);
 }
@@ -240,6 +241,7 @@ library DssLitePsmInit {
         DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
         DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
         DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
+        DssLitePsmLike(inst.litePsm).file("vow", dss.chainlog.getAddress("MCD_VOW"));
 
         // 7. Fill `litePsm` so there is liquidity available immediately.
         DssLitePsmLike(inst.litePsm).fill();
