@@ -17,6 +17,7 @@ pragma solidity ^0.8.16;
 
 interface DssLitePsmLike {
     function file(bytes32, uint256) external;
+    function HALTED() external view returns (uint256);
 }
 
 interface AuthorityLike {
@@ -74,9 +75,9 @@ contract DssLitePsmMom {
     function isAuthorized(address src, bytes4 sig) internal view returns (bool) {
         if (src == address(this)) {
             return true;
-        } else if(src == owner) {
+        } else if (src == owner) {
             return true;
-        } else if(authority == address(0)) {
+        } else if (authority == address(0)) {
             return false;
         } else {
             return AuthorityLike(authority).canCall(src, address(this), sig);
@@ -121,10 +122,10 @@ contract DssLitePsmMom {
      */
     function halt(address psm, Flow what) external auth {
         if (what == Flow.SELL || what == Flow.BOTH) {
-            DssLitePsmLike(psm).file("tin", type(uint256).max);
+            DssLitePsmLike(psm).file("tin", DssLitePsmLike(psm).HALTED());
         }
         if (what == Flow.BUY || what == Flow.BOTH) {
-            DssLitePsmLike(psm).file("tout", type(uint256).max);
+            DssLitePsmLike(psm).file("tout", DssLitePsmLike(psm).HALTED());
         }
         emit Halt(psm, what);
     }

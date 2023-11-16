@@ -53,6 +53,8 @@ interface DaiJoinLike {
  *      5. This contract can freely transfer `gem` on behalf of `pocket`.
  */
 contract DssLitePsm {
+    /// @notice Special value for `tin` and/or `tout` to indicate swaps are halted.
+    uint256 public constant HALTED = type(uint256).max;
     /// @notice Collateral type identifier.
     bytes32 public immutable ilk;
     /// @notice Maker Protocol core engine.
@@ -91,8 +93,6 @@ contract DssLitePsm {
     uint256 internal constant RAY = 10 ** 27;
     /// @dev Workaround to explicitly revert with an arithmetic error.
     string internal constant ARITHMETIC_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x11));
-    /// @notice Special value for `tin` and/or `tout` to indicate swaps are halted.
-    uint256 internal constant HALTED = type(uint256).max;
 
     /**
      * @notice `usr` was granted admin access.

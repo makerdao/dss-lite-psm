@@ -149,10 +149,10 @@ contract DssLitePsmMomTest is DssTest {
         mom.halt(address(litePsm), what);
 
         if (what == DssLitePsmMom.Flow.SELL || what == DssLitePsmMom.Flow.BOTH) {
-            assertEq(litePsm.tin(), type(uint256).max, "doHalt: tin not set");
+            assertEq(litePsm.tin(), litePsm.HALTED(), "doHalt: tin not set");
         }
         if (what == DssLitePsmMom.Flow.BUY || what == DssLitePsmMom.Flow.BOTH) {
-            assertEq(litePsm.tout(), type(uint256).max, "doHalt: tout not set");
+            assertEq(litePsm.tout(), litePsm.HALTED(), "doHalt: tout not set");
         }
     }
 
