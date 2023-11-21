@@ -38,8 +38,6 @@ contract InitCaller {
 }
 
 contract DssLitePsmMomTest is DssTest {
-    using stdStorage for StdStorage;
-
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
     bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
     bytes32 constant PSM_MOM_KEY = "MCD_LITE_PSM_MOM";
@@ -55,13 +53,12 @@ contract DssLitePsmMomTest is DssTest {
     ChiefLike chief;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig cfg;
-    InitCaller caller = new InitCaller();
+    InitCaller caller;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
 
         dss = MCD.loadFromChainlog(CHAINLOG);
-        MCD.giveAdminAccess(dss);
 
         chief = ChiefLike(dss.chainlog.getAddress("MCD_ADM"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));

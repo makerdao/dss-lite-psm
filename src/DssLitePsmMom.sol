@@ -121,12 +121,16 @@ contract DssLitePsmMom {
      * @param what The halted flow. [0 = `sellGem`, 1 = `buyGem`, 2 = `both`]
      */
     function halt(address psm, Flow what) external auth {
+        uint256 halted = DssLitePsmLike(psm).HALTED();
+
         if (what == Flow.SELL || what == Flow.BOTH) {
-            DssLitePsmLike(psm).file("tin", DssLitePsmLike(psm).HALTED());
+            DssLitePsmLike(psm).file("tin", halted);
         }
+
         if (what == Flow.BUY || what == Flow.BOTH) {
-            DssLitePsmLike(psm).file("tout", DssLitePsmLike(psm).HALTED());
+            DssLitePsmLike(psm).file("tout", halted);
         }
+
         emit Halt(psm, what);
     }
 }
