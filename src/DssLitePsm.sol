@@ -54,6 +54,8 @@ interface DaiJoinLike {
  */
 contract DssLitePsm {
     /// @notice Special value for `tin` and/or `tout` to indicate swaps are halted.
+    /// @dev Setting `tin` or `tout` to `type(uint256).max` would cause `sellGem` and `buyGem` to revert for any value.
+    ///      However those functions check against that condition and revert with an explicit error message before that.
     uint256 public constant HALTED = type(uint256).max;
     /// @notice Collateral type identifier.
     bytes32 public immutable ilk;
@@ -275,8 +277,7 @@ contract DssLitePsm {
      * @dev Swapping fees may not apply due to rounding errors for small swaps where
      *      `gemAmt < 10**gem.decimals() / tin` or
      *      `gemAmt < 10**gem.decimals() / tout`.
-     * @dev Setting `tin` or `tout` to `type(uint256).max` effectively halts `sellGem` and `buyGem` respectively,
-     *      due to overflow errors that would occur when trying to swap any value.
+     * @dev Setting `tin` or `tout` to `HALTED` effectively disables `sellGem` and `buyGem` respectively.
      * @param what The changed parameter name. ["tin", "tout", "buf"].
      * @param data The new value of the parameter.
      */
@@ -302,7 +303,7 @@ contract DssLitePsm {
 
     /**
      * @notice Function that swaps `gem` into Dai.
-     * @dev Reverts if `tin` is set to `type(uint256).max`.
+     * @dev Reverts if `tin` is set to `HALTED`.
      * @param usr The destination of the bought Dai.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
      * @return daiOutWad The amount of Dai bought.
@@ -336,7 +337,7 @@ contract DssLitePsm {
         uint256 fee;
         if (tin_ > 0) {
             fee = daiOutWad * tin_ / WAD;
-            // At this point, `tin_` cannot be larger than `1 WAD`, so an overflow is not possible.
+            // At this point, `tin_ <= 1 WAD`, so an underflow is not possible.
             unchecked {
                 daiOutWad -= fee;
             }
@@ -351,7 +352,7 @@ contract DssLitePsm {
 
     /**
      * @notice Function that swaps Dai into `gem`.
-     * @dev Reverts if `tout` is set to `type(uint256).max`.
+     * @dev Reverts if `tout` is set to `HALTED`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
      * @return daiInWad The amount of Dai required to sell.
