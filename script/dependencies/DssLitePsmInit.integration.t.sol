@@ -81,7 +81,6 @@ contract DssLitePsmInitTest is DssTest {
         vm.createSelectFork("mainnet");
 
         dss = MCD.loadFromChainlog(CHAINLOG);
-        MCD.giveAdminAccess(dss);
 
         pause = dss.chainlog.getAddress("MCD_PAUSE");
         vow = dss.chainlog.getAddress("MCD_VOW");

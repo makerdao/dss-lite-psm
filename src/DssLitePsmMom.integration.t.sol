@@ -137,6 +137,8 @@ contract DssLitePsmMomTest is DssTest {
     }
 
     function doHalt(address sender, DssLitePsmMom.Flow what) internal {
+        uint256 initial = vm.snapshot();
+
         vm.expectEmit(true, true, true, true);
         emit Halt(address(litePsm), what);
 
@@ -149,6 +151,8 @@ contract DssLitePsmMomTest is DssTest {
         if (what == DssLitePsmMom.Flow.BUY || what == DssLitePsmMom.Flow.BOTH) {
             assertEq(litePsm.tout(), litePsm.HALTED(), "doHalt: tout not set");
         }
+
+        vm.revertTo(initial);
     }
 
     function testHaltFromOwner() public {
