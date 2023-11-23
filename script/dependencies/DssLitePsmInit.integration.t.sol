@@ -62,6 +62,7 @@ contract DssLitePsmInitTest is DssTest {
     bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
+    uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
 
     DssInstance dss;
     address pause;
@@ -246,7 +247,7 @@ contract DssLitePsmInitTest is DssTest {
             (
                 string memory srcName,
                 string memory srcSymbol,
-                uint256 srcClass,
+                /* uint256 srcClass */,
                 uint256 srcDec,
                 address srcGem,
                 address srcPip,
@@ -266,7 +267,7 @@ contract DssLitePsmInitTest is DssTest {
 
             assertEq(dstName, srcName, "after: reg name mismatch");
             assertEq(dstSymbol, srcSymbol, "after: reg symbol mismatch");
-            assertEq(dstClass, srcClass, "after: reg class mismatch");
+            assertEq(dstClass, REG_CLASS_JOINLESS, "after: reg class mismatch");
             assertEq(dstDec, srcDec, "after: reg dec mismatch");
             assertEq(dstGem, srcGem, "after: reg gem mismatch");
             assertEq(dstPip, srcPip, "after: reg pip mismatch");

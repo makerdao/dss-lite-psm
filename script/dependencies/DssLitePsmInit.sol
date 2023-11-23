@@ -124,6 +124,9 @@ library DssLitePsmInit {
     uint256 internal constant WAD = 10 ** 18;
     uint256 internal constant RAY = 10 ** 27;
 
+    // New `IlkRegistry` class
+    uint256 internal constant REG_CLASS_JOINLESS = 6;
+
     ///@dev Safely converts `uint256` to `int256`. Reverts if it overflows.
     function _int256(uint256 x) internal pure returns (int256 y) {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
@@ -148,7 +151,7 @@ library DssLitePsmInit {
         require(src.ilk != ilk, "DssLitePsmInit/invalid-ilk-reuse");
 
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
-        (src.name, src.symbol, src.class, src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
+        (src.name, src.symbol, , src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
 
         require(gem == src.gem, "DssLitePsmInit/src-dst-gem-mismatch");
         require(uint256(PipLike(src.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
@@ -258,7 +261,7 @@ library DssLitePsmInit {
             address(0), // No `gemJoin` for `litePsm`
             gem,
             src.dec,
-            src.class,
+            REG_CLASS_JOINLESS,
             src.pip,
             address(0), // No `clip` for `litePsm`
             src.name,
