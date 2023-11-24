@@ -42,7 +42,6 @@ struct SrcPsm {
     address pip;
     string name;
     string symbol;
-    uint256 class;
     uint256 dec;
 }
 
