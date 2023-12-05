@@ -18,6 +18,7 @@ methods {
     function rush() external returns (uint256) envfree;
     function gush() external returns (uint256) envfree;
     function cut() external returns (uint256) envfree;
+    function HALTED() external returns (uint256) envfree;
     function vat.live() external returns (uint256) envfree;
     function vat.can(address, address) external returns (uint256) envfree;
     function vat.dai(address) external returns (uint256) envfree;
@@ -270,7 +271,8 @@ rule file_uint256_revert(bytes32 what, uint256 data) {
                    what != to_bytes32(0x6275660000000000000000000000000000000000000000000000000000000000);
     bool revert4 = (what == to_bytes32(0x74696e0000000000000000000000000000000000000000000000000000000000) ||
                    what == to_bytes32(0x746f757400000000000000000000000000000000000000000000000000000000)) &&
-                   to_mathint(data) > WAD();
+                   to_mathint(data) > WAD() &&
+                   to_mathint(data) != max_uint256;
 
     assert lastReverted <=> revert1 || revert2 || revert3 ||
                             revert4, "Revert rules failed";
@@ -318,7 +320,7 @@ rule sellGem_revert(address usr, uint256 gemAmt) {
     require e.msg.sender != currentContract;
 
     mathint tin = tin();
-    require tin <= WAD();
+    require tin <= WAD() || tin == max_uint256;
 
     mathint to18ConversionFactor = to18ConversionFactor();
 
@@ -339,9 +341,11 @@ rule sellGem_revert(address usr, uint256 gemAmt) {
     bool revert4 = gemAllowanceSenderPsm < to_mathint(gemAmt);
     bool revert5 = gemBalanceOfSender < to_mathint(gemAmt);
     bool revert6 = daiBalanceOfPsm < daiOutWad;
+    bool revert7 = tin == max_uint256;
 
     assert lastReverted <=> revert1 || revert2 || revert3 ||
-                            revert4 || revert5 || revert6, "Revert rules failed";
+                            revert4 || revert5 || revert6 ||
+                            revert7, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting sellGemNoFee
@@ -463,7 +467,7 @@ rule buyGem_revert(address usr, uint256 gemAmt) {
     require e.msg.sender != currentContract;
 
     mathint tout = tout();
-    require tout <= WAD();
+    require tout <= WAD() || tout == max_uint256;
 
     mathint to18ConversionFactor = to18ConversionFactor();
 
@@ -489,10 +493,11 @@ rule buyGem_revert(address usr, uint256 gemAmt) {
     bool revert5 = daiBalanceOfSender < daiInWad;
     bool revert6 = gemAllowancePocketPsm < to_mathint(gemAmt);
     bool revert7 = gemBalanceOfPocket < to_mathint(gemAmt);
+    bool revert8 = tout == max_uint256;
 
     assert lastReverted <=> revert1 || revert2 || revert3 ||
                             revert4 || revert5 || revert6 ||
-                            revert7, "Revert rules failed";
+                            revert7 || revert8, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting buyGemNoFee
@@ -1055,7 +1060,7 @@ rule buyGemEquivalence() {
     assert afterBuy[gem] == afterBuyNoFee[gem], "gem storage different";
     assert afterBuy[dai] == afterBuyNoFee[dai], "dai storage different";
 }
-`
+
 // if fill is possible trim is not possible and vice-versa
 rule fillOrTrim() {
     env e;

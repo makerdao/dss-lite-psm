@@ -22,6 +22,7 @@ struct DssLitePsmInitConfig {
     bytes32 srcPsmKey;
     bytes32 dstPsmKey;
     bytes32 dstPocketKey;
+    bytes32 psmMomKey;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -41,7 +42,6 @@ struct SrcPsm {
     address pip;
     string name;
     string symbol;
-    uint256 class;
     uint256 dec;
 }
 
@@ -53,8 +53,13 @@ interface DssLitePsmLike {
     function daiJoin() external view returns (address);
     function ilk() external view returns (bytes32);
     function pocket() external view returns (address);
+    function rely(address) external;
     function sellGem(address, uint256) external returns (uint256);
     function to18ConversionFactor() external view returns (uint256);
+}
+
+interface DssLitePsmMomLike {
+    function setAuthority(address) external;
 }
 
 interface DssPocketLike {
@@ -118,6 +123,9 @@ library DssLitePsmInit {
     uint256 internal constant WAD = 10 ** 18;
     uint256 internal constant RAY = 10 ** 27;
 
+    // New `IlkRegistry` class
+    uint256 internal constant REG_CLASS_JOINLESS = 6;
+
     ///@dev Safely converts `uint256` to `int256`. Reverts if it overflows.
     function _int256(uint256 x) internal pure returns (int256 y) {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
@@ -142,7 +150,7 @@ library DssLitePsmInit {
         require(src.ilk != ilk, "DssLitePsmInit/invalid-ilk-reuse");
 
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
-        (src.name, src.symbol, src.class, src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
+        (src.name, src.symbol, , src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
 
         require(gem == src.gem, "DssLitePsmInit/src-dst-gem-mismatch");
         require(uint256(PipLike(src.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
@@ -240,21 +248,28 @@ library DssLitePsmInit {
         // 7. Fill `litePsm` so there is liquidity available immediately.
         DssLitePsmLike(inst.litePsm).fill();
 
-        // 8. Add `litePsm` to `IlkRegistry`
+        // 8. Rely `mom` on `litePsm`
+        DssLitePsmLike(inst.litePsm).rely(inst.mom);
+
+        // 9. Set the chief as authority for `mom`.
+        DssLitePsmMomLike(inst.mom).setAuthority(dss.chainlog.getAddress("MCD_ADM"));
+
+        // 10. Add `litePsm` to `IlkRegistry`
         reg.put(
             ilk,
             address(0), // No `gemJoin` for `litePsm`
             gem,
             src.dec,
-            src.class,
+            REG_CLASS_JOINLESS,
             src.pip,
             address(0), // No `clip` for `litePsm`
             src.name,
             src.symbol
         );
 
-        // 9. Add `litePsm` and `pocket` to the chainlog.
+        // 11. Add `litePsm`, `mom` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
+        dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
         dss.chainlog.setAddress(cfg.dstPocketKey, inst.pocket);
     }
 }

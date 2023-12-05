@@ -35,7 +35,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     function _ilk() internal view virtual returns (bytes32);
     function _setUpGem() internal virtual returns (address);
 
-    address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
+    address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 ilk;
     DssInstance dss;
@@ -47,7 +47,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
 
     function setUp() public {
         vm.createSelectFork("mainnet");
-        dss = MCD.loadFromChainlog(CHANGELOG);
+        dss = MCD.loadFromChainlog(CHAINLOG);
         MCD.giveAdminAccess(dss);
 
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
@@ -234,6 +234,12 @@ abstract contract DssLitePsmBaseTest is DssTest {
         litePsm.fill();
     }
 
+    function testSellGem_Revert_WhenTinIsSpecialValueHalted() public {
+        litePsm.file("tin", litePsm.HALTED());
+        vm.expectRevert("DssLitePsm/sell-gem-halted");
+        litePsm.sellGem(address(this), 1);
+    }
+
     function testBuyGem() public {
         litePsm.fill();
 
@@ -288,6 +294,12 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalanceThis, pdaiBalanceThis - daiInWad, "buyGem: invalid address(this) Dai balance after buyGem");
         assertEq(daiBalancePsm, pdaiBalancePsm + daiInWad, "buyGem: invalid cash after buyGem");
+    }
+
+    function testBuyGem_Revert_WhenToutIsSpecialValueHalted() public {
+        litePsm.file("tout", litePsm.HALTED());
+        vm.expectRevert("DssLitePsm/buy-gem-halted");
+        litePsm.buyGem(address(this), 1);
     }
 
     // /*//////////////////////////////////

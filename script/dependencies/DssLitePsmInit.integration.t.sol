@@ -17,6 +17,7 @@ pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
+import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams} from "./DssLitePsmDeploy.sol";
 import {DssLitePsmInstance} from "./DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "./DssLitePsmInit.sol";
@@ -52,35 +53,44 @@ contract InitCaller {
 }
 
 contract DssLitePsmInitTest is DssTest {
-    address constant CHANGELOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
+    address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant GEM_KEY = "USDC";
+    bytes32 constant PSM_MOM_KEY = "MCD_LITE_PSM_MOM";
     bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
     bytes32 constant DST_PSM_KEY = "MCD_LITE_PSM_USDC_A";
     bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
+    uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
+
     DssInstance dss;
     address pause;
     address vow;
     address srcPsm;
+    address chief;
     IlkRegistryLike reg;
     ProxyLike pauseProxy;
     AutoLineLike autoLine;
-    DssLitePsm litePsm;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig cfg;
+    DssLitePsm litePsm;
+    DssLitePsmMom mom;
     InitCaller caller;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
-        dss = MCD.loadFromChainlog(CHANGELOG);
+
+        dss = MCD.loadFromChainlog(CHAINLOG);
+
         pause = dss.chainlog.getAddress("MCD_PAUSE");
         vow = dss.chainlog.getAddress("MCD_VOW");
         reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
+        chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
         srcPsm = dss.chainlog.getAddress(SRC_PSM_KEY);
+
         caller = new InitCaller();
 
         inst = DssLitePsmDeploy.deploy(
@@ -94,10 +104,12 @@ contract DssLitePsmInitTest is DssTest {
         );
 
         litePsm = DssLitePsm(inst.litePsm);
+        mom = DssLitePsmMom(inst.mom);
 
         cfg = DssLitePsmInitConfig({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
+            psmMomKey: PSM_MOM_KEY,
             dstPocketKey: DST_POCKET_KEY,
             buf: 50_000_000 * WAD,
             tin: 0.01 ether,
@@ -107,10 +119,13 @@ contract DssLitePsmInitTest is DssTest {
             ttl: 8 hours
         });
 
-        vm.label(CHANGELOG, "Chainlog");
+        vm.label(CHAINLOG, "Chainlog");
         vm.label(pause, "Pause");
         vm.label(vow, "Vow");
         vm.label(srcPsm, "PsmUsdc");
+        vm.label(inst.litePsm, "LitePsm");
+        vm.label(inst.mom, "LitePsmMom");
+        vm.label(inst.pocket, "Pocket");
         vm.label(address(pauseProxy), "PauseProxy");
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.jug), "Jug");
@@ -150,10 +165,13 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(pmaxLine, 0, "before: ilk already in AutoLine");
         }
 
-        // `litePsm` and `pocket` are not present in Chainlog
+        // `litePsm`, `mom` and `pocket` are not present in Chainlog
         {
             vm.expectRevert("dss-chain-log/invalid-key");
             dss.chainlog.getAddress(cfg.dstPsmKey);
+
+            vm.expectRevert("dss-chain-log/invalid-key");
+            dss.chainlog.getAddress(cfg.psmMomKey);
 
             vm.expectRevert("dss-chain-log/invalid-key");
             dss.chainlog.getAddress(cfg.dstPocketKey);
@@ -214,12 +232,22 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
 
+        // `mom` was properly set up
+        {
+            assertEq(mom.authority(), chief, "after: `mom` authority not set");
+        }
+
+        // `mom` is ward on `litePsm`
+        {
+            assertEq(litePsm.wards(inst.mom), 1, "after: `mom` not ward of `litePsm`");
+        }
+
         // `litePsm` info is added to IlkRegistry
         {
             (
                 string memory srcName,
                 string memory srcSymbol,
-                uint256 srcClass,
+                /* uint256 srcClass */,
                 uint256 srcDec,
                 address srcGem,
                 address srcPip,
@@ -239,7 +267,7 @@ contract DssLitePsmInitTest is DssTest {
 
             assertEq(dstName, srcName, "after: reg name mismatch");
             assertEq(dstSymbol, srcSymbol, "after: reg symbol mismatch");
-            assertEq(dstClass, srcClass, "after: reg class mismatch");
+            assertEq(dstClass, REG_CLASS_JOINLESS, "after: reg class mismatch");
             assertEq(dstDec, srcDec, "after: reg dec mismatch");
             assertEq(dstGem, srcGem, "after: reg gem mismatch");
             assertEq(dstPip, srcPip, "after: reg pip mismatch");
@@ -247,9 +275,10 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(dstXlip, address(0), "after: invalid reg xlip");
         }
 
-        // `litePsm` and `pocket` are present in Chainlog
+        // `litePsm`, `mom` and `pocket` are present in Chainlog
         {
             assertEq(dss.chainlog.getAddress(cfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
+            assertEq(dss.chainlog.getAddress(cfg.psmMomKey), inst.mom, "after: `mom` not in chainlog");
             assertEq(dss.chainlog.getAddress(cfg.dstPocketKey), inst.pocket, "after: `pocket` not in chainlog");
         }
     }

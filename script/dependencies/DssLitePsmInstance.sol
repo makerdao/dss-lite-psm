@@ -18,4 +18,5 @@ pragma solidity ^0.8.16;
 struct DssLitePsmInstance {
     address litePsm;
     address pocket;
+    address mom;
 }
