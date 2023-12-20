@@ -137,6 +137,9 @@ library DssLitePsmInit {
         require(cfg.srcPsmKey != cfg.dstPocketKey, "DssLitePsmInit/src-psm-same-key-pocket");
         require(cfg.dstPsmKey != cfg.dstPocketKey, "DssLitePsmInit/dst-psm-same-key-pocket");
 
+        require(cfg.buf > 0, "DssLitePsmInit/invalid-buf");
+        require(cfg.gap > 0, "DssLitePsmInit/invalid-gap");
+
         require(DssLitePsmLike(inst.litePsm).pocket() == inst.pocket, "DssLitePsmInit/pocket-address-mismatch");
         require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
 
