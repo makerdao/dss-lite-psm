@@ -400,7 +400,7 @@ rule sellGemNoFee_revert(address usr, uint256 gemAmt) {
     require e.msg.sender != currentContract;
 
     mathint budSender = bud(e.msg.sender);
-
+    mathint tin = tin();
     mathint to18ConversionFactor = to18ConversionFactor();
 
     mathint daiBalanceOfPsm = dai.balanceOf(currentContract);
@@ -419,9 +419,11 @@ rule sellGemNoFee_revert(address usr, uint256 gemAmt) {
     bool revert4 = gemAllowanceSenderPsm < to_mathint(gemAmt);
     bool revert5 = gemBalanceOfSender < to_mathint(gemAmt);
     bool revert6 = daiBalanceOfPsm < daiOutWad;
+    bool revert7 = tin == max_uint256;
 
     assert lastReverted <=> revert1 || revert2 || revert3 ||
-                            revert4 || revert5 || revert6, "Revert rules failed";
+                            revert4 || revert5 || revert6 ||
+                            revert7, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting buyGem
@@ -553,7 +555,7 @@ rule buyGemNoFee_revert(address usr, uint256 gemAmt) {
     require e.msg.sender != currentContract;
 
     mathint to18ConversionFactor = to18ConversionFactor();
-
+    mathint tout = tout();
     mathint budSender = bud(e.msg.sender);
 
     address pocket = pocket();
@@ -577,10 +579,11 @@ rule buyGemNoFee_revert(address usr, uint256 gemAmt) {
     bool revert5 = daiBalanceOfSender < daiInWad;
     bool revert6 = gemAllowancePocketPsm < to_mathint(gemAmt);
     bool revert7 = gemBalanceOfPocket < to_mathint(gemAmt);
+    bool revert8 = tout == max_uint256;
 
     assert lastReverted <=> revert1 || revert2 || revert3 ||
                             revert4 || revert5 || revert6 ||
-                            revert7, "Revert rules failed";
+                            revert7 || revert8, "Revert rules failed";
 }
 
 // Verify correct storage changes for non reverting fill
@@ -980,8 +983,8 @@ rule assetsGreaterOrEqualArt(method f) {
 
     mathint daiBalanceOfPsmBefore = dai.balanceOf(currentContract);
     mathint daiBalanceOfSenderBefore = dai.balanceOf(e.msg.sender);
-    
-    mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);  
+
+    mathint gemBalanceOfPocketBefore = gem.balanceOf(pocket);
     mathint gemBalanceOfSenderBefore = gem.balanceOf(e.msg.sender);
 
     mathint tinBefore = tin();
