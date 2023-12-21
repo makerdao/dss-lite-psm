@@ -26,7 +26,7 @@ interface AuthorityLike {
 
 /**
  * @title A mom for `DssLitePsm` instances.
- * @notice Bypass governance delay to halt `buyGem` or `sellGem` for a `DssLitePsm` instance.
+ * @notice Bypass governance delay to halt selling or buying gems in a `DssLitePsm` instance.
  */
 contract DssLitePsmMom {
     enum Flow {
