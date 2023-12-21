@@ -54,8 +54,7 @@ interface DaiJoinLike {
  */
 contract DssLitePsm {
     /// @notice Special value for `tin` and/or `tout` to indicate swaps are halted.
-    /// @dev Setting `tin` or `tout` to `type(uint256).max` would cause `sellGem` and `buyGem` to revert for any value.
-    ///      However those functions check against that condition and revert with an explicit error message before that.
+    /// @dev Setting `tin` or `tout` to `type(uint256).max` will cause sell gem and buy gem functions respectively to revert.
     uint256 public constant HALTED = type(uint256).max;
     /// @notice Collateral type identifier.
     bytes32 public immutable ilk;
@@ -277,7 +276,7 @@ contract DssLitePsm {
      * @dev Swapping fees may not apply due to rounding errors for small swaps where
      *      `gemAmt < 10**gem.decimals() / tin` or
      *      `gemAmt < 10**gem.decimals() / tout`.
-     * @dev Setting `tin` or `tout` to `HALTED` effectively disables `sellGem` and `buyGem` respectively.
+     * @dev Setting `tin` or `tout` to `HALTED` effectively disables selling and buying gems respectively.
      * @param what The changed parameter name. ["tin", "tout", "buf"].
      * @param data The new value of the parameter.
      */
