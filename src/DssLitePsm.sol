@@ -18,7 +18,6 @@ pragma solidity ^0.8.16;
 interface VatLike {
     function frob(bytes32, address, address, address, int256, int256) external;
     function hope(address) external;
-    function slip(bytes32, address, int256) external;
     function ilks(bytes32) external view returns (uint256, uint256, uint256, uint256, uint256);
     function debt() external view returns (uint256);
     function Line() external view returns (uint256);
