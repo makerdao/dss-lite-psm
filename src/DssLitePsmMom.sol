@@ -118,7 +118,7 @@ contract DssLitePsmMom {
     /**
      * @notice Halts either inflow or outflow of gems from the PSM.
      * @param psm The PSM address.
-     * @param what The halted flow. [0 = sell gems, 1 = buy gems, 2 = `both`]
+     * @param what The halted flow. [0 = sell gems, 1 = buy gems, 2 = both]
      */
     function halt(address psm, Flow what) external auth {
         uint256 halted = DssLitePsmLike(psm).HALTED();
