@@ -1,0 +1,4 @@
+{
+  "ilk": "string: the ilk for the deployed PSM",
+  "gemId": "string: the identifier for `gem` in the Chainlog"
+}
