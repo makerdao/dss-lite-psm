@@ -315,11 +315,13 @@ contract DssLitePsm {
     /**
      * @notice Function that swaps `gem` into Dai without any fees.
      * @dev Only users whitelisted through `kiss()` can call this function.
+     *      Reverts if `tin` is set to `HALTED`.
      * @param usr The destination of the bought Dai.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
      * @return daiOutWad The amount of Dai bought.
      */
     function sellGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiOutWad) {
+        require(tin != HALTED, "DssLitePsm/sell-gem-halted");
         daiOutWad = _sellGem(usr, gemAmt, 0);
     }
 
@@ -364,11 +366,13 @@ contract DssLitePsm {
     /**
      * @notice Function that swaps Dai into `gem` without any fees.
      * @dev Only users whitelisted through `kiss()` can call this function.
+     *      Reverts if `tout` is set to `HALTED`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
      * @return daiInWad The amount of Dai required to sell.
      */
     function buyGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiInWad) {
+        require(tout != HALTED, "DssLitePsm/buy-gem-halted");
         daiInWad = _buyGem(usr, gemAmt, 0);
     }
 
