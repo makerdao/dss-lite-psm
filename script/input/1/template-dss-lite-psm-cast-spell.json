@@ -1,0 +1,12 @@
+{
+  "srcPsmKey": "string: the current PSM chainlog key",
+  "dstPsmKey": "string: the new PSM chainlog key (must be != srcPsmKey)",
+  "dstPocketKey": "string: the PSM pocket chainlog key",
+  "psmMomKey": "string: the PSM Mom chainlog key",
+  "buf": "number: the amount of Dai to premint (in Dai)",
+  "tin": "number: the toll in for swaps",
+  "tout": "number: the toll out for swaps",
+  "maxLine": "number: the max debt ceiling (in Dai)",
+  "gap": "number: the max debt ceiling adjustment (in Dai)",
+  "ttl": "number: the debt ceiling adjustment cool-off (in seconds)"
+}
