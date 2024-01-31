@@ -19,7 +19,6 @@ import "dss-test/DssTest.sol";
 import {DssInstance, MCD} from "dss-test/MCD.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "script/dependencies/DssLitePsmDeploy.sol";
 import {DssLitePsmInitConfig, DssLitePsmInit} from "script/dependencies/DssLitePsmInit.sol";
-import {DssPocket} from "src/DssPocket.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 
@@ -29,6 +28,10 @@ interface ProxyLike {
 
 interface ChiefLike {
     function hat() external view returns (address);
+}
+
+interface GemLike {
+    function approve(address, uint256) external;
 }
 
 contract InitCaller {
@@ -46,6 +49,8 @@ contract DssLitePsmMomTest is DssTest {
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
 
     DssLitePsm litePsm;
+    GemLike gem;
+    address pocket;
     DssLitePsmMom mom;
     ProxyLike pauseProxy;
     address pause;
@@ -63,6 +68,8 @@ contract DssLitePsmMomTest is DssTest {
         chief = ChiefLike(dss.chainlog.getAddress("MCD_ADM"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         pause = dss.chainlog.getAddress("MCD_PAUSE");
+        gem = GemLike(dss.chainlog.getAddress("USDC"));
+        pocket = makeAddr("Pocket");
 
         caller = new InitCaller();
 
@@ -71,13 +78,17 @@ contract DssLitePsmMomTest is DssTest {
                 deployer: address(this),
                 owner: address(pauseProxy),
                 ilk: DST_ILK,
-                gem: dss.chainlog.getAddress("USDC"),
-                daiJoin: address(dss.daiJoin)
+                gem: address(gem),
+                daiJoin: address(dss.daiJoin),
+                pocket: pocket
             })
         );
 
         litePsm = DssLitePsm(inst.litePsm);
         mom = DssLitePsmMom(inst.mom);
+
+        vm.prank(pocket);
+        gem.approve(inst.litePsm, type(uint256).max);
 
         cfg = DssLitePsmInitConfig({
             srcPsmKey: SRC_PSM_KEY,
@@ -101,7 +112,6 @@ contract DssLitePsmMomTest is DssTest {
         vm.label(address(dss.daiJoin), "DaiJoin");
         vm.label(inst.litePsm, "LitePsm");
         vm.label(inst.mom, "LitePsmMom");
-        vm.label(inst.pocket, "Pocket");
 
         // Simulate a spell casting
         vm.prank(pause);

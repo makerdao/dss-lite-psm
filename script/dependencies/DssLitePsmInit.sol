@@ -62,11 +62,6 @@ interface DssLitePsmMomLike {
     function setAuthority(address) external;
 }
 
-interface DssPocketLike {
-    function gem() external view returns (address);
-    function hope(address) external;
-}
-
 interface DssPsmLike {
     function ilk() external view returns (bytes32);
 }
@@ -81,6 +76,7 @@ interface GemJoinLike {
 
 interface GemLike {
     function approve(address, uint256) external;
+    function allowance(address, address) external view returns (uint256);
 }
 
 interface AutoLineLike {
@@ -140,12 +136,10 @@ library DssLitePsmInit {
         require(cfg.buf > 0, "DssLitePsmInit/invalid-buf");
         require(cfg.gap > 0, "DssLitePsmInit/invalid-gap");
 
-        require(DssLitePsmLike(inst.litePsm).pocket() == inst.pocket, "DssLitePsmInit/pocket-address-mismatch");
         require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
 
         bytes32 ilk = DssLitePsmLike(inst.litePsm).ilk();
         address gem = DssLitePsmLike(inst.litePsm).gem();
-        require(gem == DssPocketLike(inst.pocket).gem(), "DssLitePsmInit/pocket-gem-mismatch");
 
         SrcPsm memory src;
         src.psm = dss.chainlog.getAddress(cfg.srcPsmKey);
@@ -153,7 +147,7 @@ library DssLitePsmInit {
         require(src.ilk != ilk, "DssLitePsmInit/invalid-ilk-reuse");
 
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
-        (src.name, src.symbol, , src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
+        (src.name, src.symbol,, src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
 
         require(gem == src.gem, "DssLitePsmInit/src-dst-gem-mismatch");
         require(uint256(PipLike(src.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
@@ -167,8 +161,13 @@ library DssLitePsmInit {
             require(srcInk == src.art, "DssLitePsmInit/src-ink-art-mismatch");
         }
 
-        // 0. Wire `litePsm` and `pocket`.
-        DssPocketLike(inst.pocket).hope(inst.litePsm);
+        address pocket = DssLitePsmLike(inst.litePsm).pocket();
+
+        // 0. Ensure `litePsm` can spend `gem` on behalf of `pocket`.
+        require(
+            GemLike(gem).allowance(pocket, inst.litePsm) == type(uint256).max,
+            "DssLitePsmInit/invalid-pocket-allowance"
+        );
 
         // 1. Initialize the new ilk
         dss.vat.init(ilk);
@@ -273,6 +272,6 @@ library DssLitePsmInit {
         // 11. Add `litePsm`, `mom` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
         dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
-        dss.chainlog.setAddress(cfg.dstPocketKey, inst.pocket);
+        dss.chainlog.setAddress(cfg.dstPocketKey, pocket);
     }
 }
