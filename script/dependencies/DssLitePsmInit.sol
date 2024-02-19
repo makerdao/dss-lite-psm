@@ -23,6 +23,7 @@ struct DssLitePsmInitConfig {
     bytes32 dstPsmKey;
     bytes32 dstPocketKey;
     bytes32 psmMomKey;
+    address pocket;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -137,6 +138,7 @@ library DssLitePsmInit {
         require(cfg.gap > 0, "DssLitePsmInit/invalid-gap");
 
         require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
+        require(DssLitePsmLike(inst.litePsm).pocket() == cfg.pocket, "DssLitePsmInit/pocket-mismatch");
 
         bytes32 ilk = DssLitePsmLike(inst.litePsm).ilk();
         address gem = DssLitePsmLike(inst.litePsm).gem();

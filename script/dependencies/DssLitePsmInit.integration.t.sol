@@ -123,6 +123,7 @@ contract DssLitePsmInitTest is DssTest {
             dstPsmKey: DST_PSM_KEY,
             psmMomKey: PSM_MOM_KEY,
             dstPocketKey: DST_POCKET_KEY,
+            pocket: pocket,
             buf: 50_000_000 * WAD,
             tin: 0.01 ether,
             tout: 0.01 ether,
