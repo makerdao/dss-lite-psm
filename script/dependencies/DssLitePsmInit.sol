@@ -163,11 +163,9 @@ library DssLitePsmInit {
             require(srcInk == src.art, "DssLitePsmInit/src-ink-art-mismatch");
         }
 
-        address pocket = DssLitePsmLike(inst.litePsm).pocket();
-
         // 0. Ensure `litePsm` can spend `gem` on behalf of `pocket`.
         require(
-            GemLike(gem).allowance(pocket, inst.litePsm) == type(uint256).max,
+            GemLike(gem).allowance(cfg.pocket, inst.litePsm) == type(uint256).max,
             "DssLitePsmInit/invalid-pocket-allowance"
         );
 
@@ -274,6 +272,6 @@ library DssLitePsmInit {
         // 11. Add `litePsm`, `mom` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
         dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
-        dss.chainlog.setAddress(cfg.dstPocketKey, pocket);
+        dss.chainlog.setAddress(cfg.dstPocketKey, cfg.pocket);
     }
 }
