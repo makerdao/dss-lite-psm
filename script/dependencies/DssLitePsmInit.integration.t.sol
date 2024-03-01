@@ -46,6 +46,10 @@ interface IlkRegistryLike {
         );
 }
 
+interface GemLike {
+    function approve(address, uint256) external;
+}
+
 contract InitCaller {
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) external {
         DssLitePsmInit.init(dss, inst, cfg);
@@ -76,6 +80,8 @@ contract DssLitePsmInitTest is DssTest {
     DssLitePsmInitConfig cfg;
     DssLitePsm litePsm;
     DssLitePsmMom mom;
+    GemLike gem;
+    address pocket;
     InitCaller caller;
 
     function setUp() public {
@@ -90,6 +96,8 @@ contract DssLitePsmInitTest is DssTest {
         chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
         srcPsm = dss.chainlog.getAddress(SRC_PSM_KEY);
+        gem = GemLike(dss.chainlog.getAddress(GEM_KEY));
+        pocket = makeAddr("Pocket");
 
         caller = new InitCaller();
 
@@ -98,19 +106,24 @@ contract DssLitePsmInitTest is DssTest {
                 deployer: address(this),
                 owner: address(pauseProxy),
                 ilk: DST_ILK,
-                gem: dss.chainlog.getAddress(GEM_KEY),
-                daiJoin: address(dss.daiJoin)
+                gem: address(gem),
+                daiJoin: address(dss.daiJoin),
+                pocket: pocket
             })
         );
 
         litePsm = DssLitePsm(inst.litePsm);
         mom = DssLitePsmMom(inst.mom);
 
+        vm.prank(pocket);
+        gem.approve(inst.litePsm, type(uint256).max);
+
         cfg = DssLitePsmInitConfig({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
             psmMomKey: PSM_MOM_KEY,
             dstPocketKey: DST_POCKET_KEY,
+            pocket: pocket,
             buf: 50_000_000 * WAD,
             tin: 0.01 ether,
             tout: 0.01 ether,
@@ -125,7 +138,6 @@ contract DssLitePsmInitTest is DssTest {
         vm.label(srcPsm, "PsmUsdc");
         vm.label(inst.litePsm, "LitePsm");
         vm.label(inst.mom, "LitePsmMom");
-        vm.label(inst.pocket, "Pocket");
         vm.label(address(pauseProxy), "PauseProxy");
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.jug), "Jug");
@@ -279,7 +291,7 @@ contract DssLitePsmInitTest is DssTest {
         {
             assertEq(dss.chainlog.getAddress(cfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
             assertEq(dss.chainlog.getAddress(cfg.psmMomKey), inst.mom, "after: `mom` not in chainlog");
-            assertEq(dss.chainlog.getAddress(cfg.dstPocketKey), inst.pocket, "after: `pocket` not in chainlog");
+            assertEq(dss.chainlog.getAddress(cfg.dstPocketKey), pocket, "after: `pocket` not in chainlog");
         }
     }
 }

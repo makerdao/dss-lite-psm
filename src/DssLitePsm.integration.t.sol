@@ -16,7 +16,6 @@
 pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
-import {DssPocket} from "src/DssPocket.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 
 interface GemLike {
@@ -41,7 +40,7 @@ abstract contract DssLitePsmBaseTest is DssTest {
     DssInstance dss;
     AutoLineLike autoLine;
     GemLike gem;
-    DssPocket pocket;
+    address pocket;
     DssLitePsm litePsm;
     uint256 buf;
 
@@ -57,10 +56,11 @@ abstract contract DssLitePsmBaseTest is DssTest {
         ilk = _ilk();
         gem = GemLike(_setUpGem());
 
-        pocket = new DssPocket(address(gem));
-        litePsm = new DssLitePsm(ilk, address(gem), address(dss.daiJoin), address(pocket));
+        pocket = makeAddr("Pocket");
+        litePsm = new DssLitePsm(ilk, address(gem), address(dss.daiJoin), pocket);
         // Allow litePsm to spend `gem` on behalf of `pocket`.
-        pocket.hope(address(litePsm));
+        vm.prank(pocket);
+        gem.approve(address(litePsm), type(uint256).max);
 
         MCD.initIlk(dss, ilk);
         uint256 dline = 100_000_000 * RAD;
@@ -109,7 +109,6 @@ abstract contract DssLitePsmBaseTest is DssTest {
     }
 
     function testSetUpContractDependencies() public {
-        assertEq(address(pocket.gem()), address(litePsm.gem()), "sanity check: mismatching gem");
         assertEq(litePsm.pocket(), address(pocket), "sanity check: bad lightPsm.pocket()");
     }
 

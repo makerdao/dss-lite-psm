@@ -36,6 +36,7 @@ contract DssLitePsmDeployScript is Script {
     bytes32 ilk;
     bytes32 gemId;
     address gem;
+    address pocket;
     DssLitePsmInstance inst;
 
     function run() external {
@@ -45,6 +46,7 @@ contract DssLitePsmDeployScript is Script {
         ilk = ilkStr.stringToBytes32();
         gemId = config.readString(".gemId", "FOUNDRY_GEM_ID").stringToBytes32();
         gem = dss.chainlog.getAddress(gemId);
+        pocket = config.readAddress(".pocket", "FOUNDRY_POCKET");
 
         vm.startBroadcast();
 
@@ -54,15 +56,16 @@ contract DssLitePsmDeployScript is Script {
                 owner: pauseProxy,
                 ilk: ilk,
                 gem: gem,
-                daiJoin: address(dss.daiJoin)
+                daiJoin: address(dss.daiJoin),
+                pocket: pocket
             })
         );
 
         vm.stopBroadcast();
 
         ScriptTools.exportContract(NAME, "litePsm", inst.litePsm);
-        ScriptTools.exportContract(NAME, "pocket", inst.pocket);
         ScriptTools.exportContract(NAME, "mom", inst.mom);
+        ScriptTools.exportContract(NAME, "pocket", pocket);
         ScriptTools.exportContract(NAME, "gem", gem);
         ScriptTools.exportValue(NAME, "ilk", ilkStr);
     }
