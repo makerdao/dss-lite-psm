@@ -30,6 +30,15 @@ interface AutoLineLike {
     function setIlk(bytes32 ilk, uint256 line, uint256 gap, uint256 ttl) external;
 }
 
+interface GemJoinViewOnlyLike {
+    function vat() external view returns (address);
+    function ilk() external view returns (bytes32);
+    function gem() external view returns (address);
+    function dec() external view returns (uint256);
+    function live() external view returns (uint256);
+    function wards(address) external view returns (uint256);
+}
+
 abstract contract DssLitePsmBaseTest is DssTest {
     function _ilk() internal view virtual returns (bytes32);
     function _setUpGem() internal virtual returns (address);
@@ -914,6 +923,19 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 gemAmt = _wadToAmt(100_000 * WAD);
         vm.expectRevert();
         litePsm.buyGem(address(this), gemAmt);
+    }
+
+    function testGemJoinCompatibility() public {
+        GemJoinViewOnlyLike gemJoin = GemJoinViewOnlyLike(litePsm.gemJoin());
+
+        assertEq(address(gemJoin), address(litePsm), "gemJoinCompatibility/invalid-ref: LitePsm is not its own gemJoin");
+        assertEq(address(gemJoin.gem()), address(litePsm.gem()), "gemJoinCompatibility/invalid-ref: gem mismatch");
+        assertEq(address(gemJoin.vat()), address(litePsm.vat()), "gemJoinCompatibility/invalid-ref: vat mismatch");
+        assertEq(gemJoin.live(), litePsm.live(), "gemJoinCompatibility/invalid-ref: gem mismatch");
+        assertEq(gemJoin.ilk(), litePsm.ilk(), "gemJoinCompatibility/invalid-ref: ilk mismatch");
+        assertEq(gemJoin.dec(), litePsm.dec(), "gemJoinCompatibility/invalid-ref: dec mismatch on litePsm");
+        assertEq(gemJoin.dec(), gem.decimals(), "gemJoinCompatibility/invalid-ref: dec mismatch on gem");
+        assertEq(gemJoin.wards(address(this)), litePsm.wards(address(this)), "gemJoinCompatibility/invalid-ref: wards mismatch");
     }
 
     /*//////////////////////////////////

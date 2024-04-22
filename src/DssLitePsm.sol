@@ -22,6 +22,7 @@ interface VatLike {
     function debt() external view returns (uint256);
     function Line() external view returns (uint256);
     function urns(bytes32, address) external view returns (uint256, uint256);
+    function live() external view returns(uint256);
 }
 
 interface GemLike {
@@ -507,5 +508,42 @@ contract DssLitePsm {
         uint256 cash = dai.balanceOf(address(this));
 
         wad = _min(cash, cash + gem.balanceOf(pocket) * to18ConversionFactor - art);
+    }
+
+    /*//////////////////////////////////
+            Compatibility Layer
+    //////////////////////////////////*/
+
+    /**
+     * @notice Returns the address of the LitePsm contract itself.
+     * @dev LitePsm does not have an external gem join. All logic is handled internally.
+     *      This function is required because there are some dependencies that assume every PSM has a gem join.
+     * @return The address of this contract.
+     */
+    function gemJoin() public view returns (address) {
+        return address(this);
+    }
+
+    /**
+     * @notice Returns the number of decimals for `gem`.
+     * @dev LitePsm does not have an external gem join, all logic is handled internally.
+     *      This function exists only so the interface of contract is compatible with
+     *      `AuthGemJoin`, which is used in other PSM implementations.
+     * @return The number of decimals for `gem`.
+     */
+    function dec() public view returns (uint256) {
+        return gem.decimals();
+    }
+
+    /**
+     * @notice Returns whether the contract is live or not.
+     * @dev LitePsm does not have an external gem join, all logic is handled internally.
+     *      This function exists only so the interface of contract is compatible with
+     *      `AuthGemJoin`, which is used in other PSM implementations.
+     *      It will simply delegate it to the `vat`.
+     * @return Whether the contract is live or not
+     */
+    function live() public view returns (uint256) {
+        return vat.live();
     }
 }
