@@ -22,7 +22,7 @@ interface VatLike {
     function debt() external view returns (uint256);
     function Line() external view returns (uint256);
     function urns(bytes32, address) external view returns (uint256, uint256);
-    function live() external view returns(uint256);
+    function live() external view returns (uint256);
 }
 
 interface GemLike {
