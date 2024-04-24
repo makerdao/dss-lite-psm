@@ -526,9 +526,6 @@ contract DssLitePsm {
 
     /**
      * @notice Returns the number of decimals for `gem`.
-     * @dev LitePsm does not have an external gem join, all logic is handled internally.
-     *      This function exists only so the interface of contract is compatible with
-     *      `AuthGemJoin`, which is used in other PSM implementations.
      * @return The number of decimals for `gem`.
      */
     function dec() external view returns (uint256) {
@@ -537,11 +534,7 @@ contract DssLitePsm {
 
     /**
      * @notice Returns whether the contract is live or not.
-     * @dev LitePsm does not have an external gem join, all logic is handled internally.
-     *      This function exists only so the interface of contract is compatible with
-     *      `AuthGemJoin`, which is used in other PSM implementations.
-     *      It will simply delegate it to the `vat`.
-     * @return Whether the contract is live or not
+     * @return Whether the contract is live or not.
      */
     function live() external view returns (uint256) {
         return vat.live();
