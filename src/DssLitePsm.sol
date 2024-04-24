@@ -520,7 +520,7 @@ contract DssLitePsm {
      *      This function is required because there are some dependencies that assume every PSM has a gem join.
      * @return The address of this contract.
      */
-    function gemJoin() public view returns (address) {
+    function gemJoin() external view returns (address) {
         return address(this);
     }
 
@@ -531,7 +531,7 @@ contract DssLitePsm {
      *      `AuthGemJoin`, which is used in other PSM implementations.
      * @return The number of decimals for `gem`.
      */
-    function dec() public view returns (uint256) {
+    function dec() external view returns (uint256) {
         return gem.decimals();
     }
 
@@ -543,7 +543,7 @@ contract DssLitePsm {
      *      It will simply delegate it to the `vat`.
      * @return Whether the contract is live or not
      */
-    function live() public view returns (uint256) {
+    function live() external view returns (uint256) {
         return vat.live();
     }
 }
