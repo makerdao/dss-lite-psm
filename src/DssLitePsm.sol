@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2023 MakerDAO Stable Tokens Foundation <www.daifoundation.org>
+// SPDX-FileCopyrightText: © 2023 Dai Foundation <www.daifoundation.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // This program is free software: you can redistribute it and/or modify
@@ -50,7 +50,7 @@ interface NativeJoinLike {
  *      1. There are no other urns for the same `ilk`
  *      2. Stability fee is always zero for the `ilk`
  *      3. The `spot` price for gem is always 1 (`10**27`).
- *      4. The `spotter.par` (MakerDAO Stable Tokens parity) is always 1 (`10**27`).
+ *      4. The `spotter.par` (MakerDAO Stable Token parity) is always 1 (`10**27`).
  *      5. This contract can freely transfer `gem` on behalf of `pocket`.
  */
 contract DssLitePsm {
