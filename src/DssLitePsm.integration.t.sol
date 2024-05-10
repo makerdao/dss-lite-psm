@@ -17,12 +17,15 @@ pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
+import {MockNativeJoin} from "src/mocks/MockNativeJoin.sol";
+import {MockNativeToken} from "src/mocks/MockNativeToken.sol";
 
 interface GemLike {
     function approve(address spender, uint256 value) external;
     function transfer(address to, uint256 value) external;
     function balanceOf(address owner) external view returns (uint256);
     function decimals() external view returns (uint8);
+    function totalSupply() external view returns (uint256);
 }
 
 interface AutoLineLike {
@@ -37,6 +40,11 @@ interface GemJoinViewOnlyLike {
     function dec() external view returns (uint256);
     function live() external view returns (uint256);
     function wards(address) external view returns (uint256);
+}
+
+struct NativeInst {
+    address nativeJoin;
+    address nativeToken;
 }
 
 abstract contract DssLitePsmBaseTest is DssTest {
@@ -103,6 +111,17 @@ abstract contract DssLitePsmBaseTest is DssTest {
         vm.label(address(dss.vow), "Vow");
         vm.label(address(dss.dai), "Dai");
         vm.label(address(dss.daiJoin), "DaiJoin");
+    }
+
+    function _setUpNativeJoin() internal returns (NativeInst memory out) {
+        MockNativeToken nativeToken = new MockNativeToken();
+        MockNativeJoin nativeJoin = new MockNativeJoin(address(dss.vat), address(nativeToken));
+
+        out.nativeJoin = address(nativeJoin);
+        out.nativeToken = address(nativeToken);
+
+        dss.vat.rely(out.nativeJoin);
+        nativeToken.rely(out.nativeJoin);
     }
 
     /*//////////////////////////////////
@@ -242,6 +261,45 @@ abstract contract DssLitePsmBaseTest is DssTest {
         litePsm.fill();
     }
 
+    function testSellGemAfterFileNativeJoin() public {
+        // Ensure there is some outstanding balance
+        litePsm.fill();
+
+        uint256 pdaiBalancePsm = dss.dai.balanceOf(address(litePsm));
+
+        NativeInst memory inst = _setUpNativeJoin();
+        GemLike nativeToken = GemLike(inst.nativeToken);
+        litePsm.file("nativeJoin", inst.nativeJoin);
+
+        uint256 gemAmt = _wadToAmt(50_000 * WAD);
+        uint256 pnativeTokenTotalSupply = nativeToken.totalSupply();
+        uint256 pnativeTokenBalancePsm = nativeToken.balanceOf(address(litePsm));
+        assertEq(pnativeTokenBalancePsm, pdaiBalancePsm, "sellGem: outstanding Dai not swapped for new token");
+
+        uint256 pnativeTokenBalanceThis = nativeToken.balanceOf(address(this));
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pgemBalanceThis = gem.balanceOf(address(this));
+
+        vm.expectEmit(true, true, true, true);
+        emit SellGem(address(this), gemAmt, 0);
+        uint256 nativeTokenOutWad = litePsm.sellGem(address(this), gemAmt);
+
+        uint256 nativeTokenTotalSupply = nativeToken.totalSupply();
+        // NativeToken total supply should not be affected.
+        assertEq(nativeTokenTotalSupply, pnativeTokenTotalSupply, "sellGem: NativeToken total supply changed unexpectedly");
+
+        // Available NativeToken liquidity should reduce by the same amount being swapped.
+        uint256 nativeTokenBalancePsm = nativeToken.balanceOf(address(litePsm));
+        assertEq(nativeTokenBalancePsm, pnativeTokenBalancePsm - nativeTokenOutWad, "sellGem: invalid PSM NativeToken change");
+        uint256 nativeTokenBalanceThis = nativeToken.balanceOf(address(this));
+        assertEq(nativeTokenBalanceThis, pnativeTokenBalanceThis + nativeTokenOutWad, "sellGem: invalid address(this) NativeToken balance change");
+
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalancePocket, pgemBalancePocket + gemAmt, "sellGem: invalid pocket gem balance change");
+        uint256 gemBalanceThis = gem.balanceOf(address(this));
+        assertEq(gemBalanceThis, pgemBalanceThis - gemAmt, "sellGem: invalid address(this) gem balance change");
+    }
+
     function testSellGem_Revert_WhenTinIsSpecialValueHalted() public {
         litePsm.file("tin", litePsm.HALTED());
 
@@ -279,6 +337,41 @@ abstract contract DssLitePsmBaseTest is DssTest {
         uint256 daiBalancePsm = dss.dai.balanceOf(address(litePsm));
         assertEq(daiBalanceThis, pdaiBalanceThis - daiInWad, "buyGem: invalid address(this) Dai balance after buyGem");
         assertEq(daiBalancePsm, pdaiBalancePsm + daiInWad, "buyGem: invalid cash after buyGem");
+    }
+
+    function testBuyGemAfterFileNativeJoin() public {
+        litePsm.fill();
+
+        NativeInst memory inst = _setUpNativeJoin();
+        GemLike nativeToken = GemLike(inst.nativeToken);
+        litePsm.file("nativeJoin", inst.nativeJoin);
+        // Mints 100_000_000 Dai into the test contract.
+        GodMode.setBalance(address(nativeToken), address(this), 100_000_000 * WAD);
+        nativeToken.approve(address(litePsm), type(uint256).max);
+
+        uint256 igemAmt = _wadToAmt(10_000_000 * WAD);
+        litePsm.sellGem(address(0x1337), igemAmt);
+
+        address usr = address(0xd34d);
+        uint256 pgemBalanceUsr = gem.balanceOf(usr);
+        uint256 pgemBalancePocket = gem.balanceOf(address(pocket));
+        uint256 pnativeTokenBalanceThis = nativeToken.balanceOf(address(this));
+        uint256 pnativeTokenBalancePsm = nativeToken.balanceOf(address(litePsm));
+
+        uint256 gemAmt = _wadToAmt(3_000_000 * WAD);
+        vm.expectEmit(true, true, true, true);
+        emit BuyGem(usr, gemAmt, 0);
+        uint256 nativeTokenInWad = litePsm.buyGem(usr, gemAmt);
+
+        uint256 gemBalanceUsr = gem.balanceOf(usr);
+        uint256 gemBalancePocket = gem.balanceOf(address(pocket));
+        assertEq(gemBalanceUsr, pgemBalanceUsr + gemAmt, "buyGem: invalid usr gem balance after buyGem");
+        assertEq(gemBalancePocket, pgemBalancePocket - gemAmt, "buyGem: invalid pocket gem balance after buyGem");
+
+        uint256 nativeTokenBalanceThis = nativeToken.balanceOf(address(this));
+        uint256 nativeTokenBalancePsm = nativeToken.balanceOf(address(litePsm));
+        assertEq(nativeTokenBalanceThis, pnativeTokenBalanceThis - nativeTokenInWad, "buyGem: invalid address(this) NativeToken balance after buyGem");
+        assertEq(nativeTokenBalancePsm, pnativeTokenBalancePsm + nativeTokenInWad, "buyGem: invalid cash after buyGem");
     }
 
     function testBuyGem_Fuzz_Bounded(uint256 igemAmt, uint256 gemAmt) public {

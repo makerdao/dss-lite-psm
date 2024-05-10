@@ -26,7 +26,7 @@ Lightweight Peg Stability Module (PSM) implementation.
 
 ## Overview
 
-A Peg Stability Module (PSM) is a facility through which users can freely swap Dai for stablecoins with no slippage.
+A Peg Stability Module (PSM) is a facility through which users can freely swap MakerDAO Stable Token for stablecoins with no slippage.
 MakerDAO Governance can enable swap fees, though, which are computed as revenue for the protocol.
 
 This module is heavily inspired by the [current PSM][psm], [PSM v2][psm-v2] and some other PSM prototypes within
@@ -36,7 +36,7 @@ The issue with those implementations is that swapping through them can be quite 
 the `Vat` (MakerDAO's main accounting module) directly on every swap.
 
 To help alleviate this problem, `DssLitePsm` aims to be more gas efficient. The strategy is to allow users to swap in a
-**pool** of pre-minted Dai and stablecoins, reducing the swap to 2 ERC-20 token transfers with little overhead.
+**pool** of pre-minted MakerDAO Stable Token and stablecoins, reducing the swap to 2 ERC-20 token transfers with little overhead.
 
 The required bookkeeping is done _off-band_ (not to be confused with _off-chain_), through a set of permissionless
 functions that aim to keep the pool operating under the predefined constraints, and incorporate the accumulated swap
@@ -83,21 +83,21 @@ A simplified diagram of the `DssLitePsm` architecture:
      │                   join / exit │  │  ╰────────────────────────  👷
      │                               │  │                           Keeper
      │                               │  │
-╭────▼────╮          ╭───────────╮   │  │
-│         │   move   │           │   │  │
-│   Vat   ◄──────────┤  DaiJoin  ◄───╯  │
-│         │          │           │      │
-╰─────────╯          ╰─────┬─────╯      │
-                           │            │
-                           │            │
-               mint / burn │            │
-                           │            │ transfer / transferFrom
-                           │            │
-                      ╭────▼────╮       │
-                      │         │       │
-                      │   Dai   ◄───────╯
-                      │         │
-                      ╰─────────╯
+╭────▼────╮          ╭────────────╮  │  │
+│         │   move   │            │  │  │
+│   Vat   ◄──────────┤ NativeJoin ◄──╯  │
+│         │          │            │     │
+╰─────────╯          ╰──────┬─────╯     │
+                            │           │
+                            │           │
+               mint / burn  │           │
+                            │           │ transfer / transferFrom
+                            │           │
+                     ╭──────▼──────╮    │
+                     │             │    │
+                     │ NativeToken ◄────╯
+                     │             │
+                     ╰─────────────╯
 ```
 
 ### Design and Constraints
@@ -108,32 +108,32 @@ These are the main constraints that guided the design of this module:
 1. Backwards compatibility: the new implementation should not break integrations with the current one.
 1. Permissioned no-fee swaps: specific actors are allowed to use the PSM for swaps without paying any swap fees.
 
-Part of the Dai liquidity available in `DssLitePsm` is technically unbacked Dai. This not a problem because the Dai is
+Part of the MakerDAO Stable Token liquidity available in `DssLitePsm` is technically unbacked MakerDAO Stable Token. This not a problem because the MakerDAO Stable Token is
 locked into `DssLitePsm` until users deposit USDC, backing the amount that is going to be released.
 
 ### Known Limitations
 
 #### 1. Potential Front-Running
 
-`DssLitePsm` relies on pre-minted Dai. It is designed to keep a fixed-sized amount (`buf`) of it available most of the
-time.  However, when users call `buyGem`, the amount of Dai available will be temporarily larger than `buf`.
+`DssLitePsm` relies on pre-minted MakerDAO Stable Token. It is designed to keep a fixed-sized amount (`buf`) of it available most of the
+time.  However, when users call `buyGem`, the amount of MakerDAO Stable Token available will be temporarily larger than `buf`.
 
-**Scenario A:** a user might observe the outstanding amount of Dai and wish to call `sellGem` to receive the total of
-Dai in return. In that scenario, there is a possibility of a transaction calling any of the permissionless bookkeeping
-functions to front-run them, causing the swap to fail, as the Dai liquidity would be lower than the required amount.
+**Scenario A:** a user might observe the outstanding amount of MakerDAO Stable Token and wish to call `sellGem` to receive the total of
+MakerDAO Stable Token in return. In that scenario, there is a possibility of a transaction calling any of the permissionless bookkeeping
+functions to front-run them, causing the swap to fail, as the MakerDAO Stable Token liquidity would be lower than the required amount.
 
 The scenario A above is not possible with the current PSM implementation because each swap is "self-balancing", so no
 off-band bookkeeping is required.
 
-**Scenario B:** a large swap might front-run another one, even if unintentionally. Imagine there is `10M` Dai
+**Scenario B:** a large swap might front-run another one, even if unintentionally. Imagine there is `10M` MakerDAO Stable Token
 outstanding in `DssLitePsm`. If Alice &ndash; who wants to swap `8M` &ndash; and Bob &ndash; who wants to swap `3M`
 &ndash; submit their transactions at the same time, only the first one will be executed.
 
-The scenario B above is not possible with the current PSM implementation because `sellGem` is able to mint Dai
+The scenario B above is not possible with the current PSM implementation because `sellGem` is able to mint MakerDAO Stable Token
 on-the-fly to fulfill the swap, given that there is enough room in the debt ceiling.
 
 Notice how the same issue happens in `buyGem`, however the amount of `gem` deposited into `DssLitePsm` is only bounded
-by the debt ceiling, while the amount of `Dai` will tend to gravitate towards `buf`.
+by the debt ceiling, while the amount of `MakerDAO Stable Token` will tend to gravitate towards `buf`.
 
 The consequence is that anyone willing to call `sellGem` with a value larger than `buf` should take care of potential
 front-running transactions by bundling it with an optional liquidity increase (`fill`).
@@ -145,7 +145,7 @@ proposal to increase the swapping fees `tin` and/or `tout`. That is done through
 on-chain smart contract that can be permissionlessly _cast_ (executed) after following the Governance process.
 
 If Alice sends a swap transaction and a spell increasing the fees is cast before her transaction, she will either pay
-more Dai when buying gems or receive less Dai when selling gems than the originally expected.
+more MakerDAO Stable Token when buying gems or receive less MakerDAO Stable Token when selling gems than the originally expected.
 
 This is a highly unlikely scenario, but users or aggregators are able to handle this issue through a wrapper contract.
 

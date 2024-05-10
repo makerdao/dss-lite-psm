@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: © 2023 Dai Foundation <www.daifoundation.org>
+// SPDX-FileCopyrightText: © 2023 MakerDAO Stable Tokens Foundation <www.daifoundation.org>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // This program is free software: you can redistribute it and/or modify
@@ -18,6 +18,7 @@ pragma solidity ^0.8.16;
 interface VatLike {
     function frob(bytes32, address, address, address, int256, int256) external;
     function hope(address) external;
+    function nope(address) external;
     function ilks(bytes32) external view returns (uint256, uint256, uint256, uint256, uint256);
     function debt() external view returns (uint256);
     function Line() external view returns (uint256);
@@ -33,7 +34,7 @@ interface GemLike {
     function transferFrom(address, address, uint256) external;
 }
 
-interface DaiJoinLike {
+interface NativeJoinLike {
     function dai() external view returns (address);
     function vat() external view returns (address);
     function exit(address, uint256) external;
@@ -42,14 +43,14 @@ interface DaiJoinLike {
 
 /**
  * @title A lightweight PSM implementation.
- * @notice Swaps Dai for `gem` at a 1:1 exchange rate.
+ * @notice Swaps MakerDAO Stable Tokens for `gem` at a 1:1 exchange rate.
  * @notice Fees `tin` and `tout` might apply.
  * @dev `gem` balance is kept in `pocket` instead of this contract.
  * @dev A few assumptions are made:
  *      1. There are no other urns for the same `ilk`
  *      2. Stability fee is always zero for the `ilk`
  *      3. The `spot` price for gem is always 1 (`10**27`).
- *      4. The `spotter.par` (Dai parity) is always 1 (`10**27`).
+ *      4. The `spotter.par` (MakerDAO Stable Tokens parity) is always 1 (`10**27`).
  *      5. This contract can freely transfer `gem` on behalf of `pocket`.
  */
 contract DssLitePsm {
@@ -60,13 +61,9 @@ contract DssLitePsm {
     bytes32 public immutable ilk;
     /// @notice Maker Protocol core engine.
     VatLike public immutable vat;
-    /// @notice Dai adapter.
-    DaiJoinLike public immutable daiJoin;
-    /// @notice Dai token.
-    GemLike public immutable dai;
-    /// @notice Gem to exchange with Dai.
+    /// @notice Gem to exchange with MakerDAO Stable Tokens.
     GemLike public immutable gem;
-    /// @notice Precision conversion factor for `gem`, since Dai is expected to always have 18 decimals.
+    /// @notice Precision conversion factor for `gem`, since MakerDAO Stable Tokens is expected to always have 18 decimals.
     uint256 public immutable to18ConversionFactor;
     /// @notice The ultimate holder of the gems.
     /// @dev This contract should be able to freely transfer `gem` on behalf of `pocket`.
@@ -76,6 +73,10 @@ contract DssLitePsm {
     mapping(address => uint256) public wards;
     /// @notice Addresses with permission to swap with no fees. `bud[usr]`.
     mapping(address => uint256) public bud;
+    /// @notice Native token adapter.
+    NativeJoinLike public nativeJoin;
+    /// @notice Native token.
+    GemLike public nativeToken;
     /// @notice Maker Protocol balance sheet.
     address public vow;
     /// @notice Fee for selling gems.
@@ -84,7 +85,7 @@ contract DssLitePsm {
     /// @notice Fee for buying gems.
     /// @dev `wad` precision. 1 * WAD means a 100% fee.
     uint256 public tout;
-    /// @notice Buffer for pre-minted Dai.
+    /// @notice Buffer for pre-minted MakerDAO Stable Tokens.
     /// @dev `wad` precision.
     uint256 public buf;
 
@@ -128,32 +129,32 @@ contract DssLitePsm {
      */
     event File(bytes32 indexed what, uint256 data);
     /**
-     * @notice A user sold `gem` for Dai.
-     * @param owner The address receiving Dai.
+     * @notice A user sold `gem` for MakerDAO Stable Tokens.
+     * @param owner The address receiving MakerDAO Stable Tokens.
      * @param value The amount of `gem` sold. [`gem` precision].
-     * @param fee The fee in Dai paid by the user. [`wad`].
+     * @param fee The fee in MakerDAO Stable Tokens paid by the user. [`wad`].
      */
     event SellGem(address indexed owner, uint256 value, uint256 fee);
     /**
-     * @notice A user bought `gem` with Dai.
+     * @notice A user bought `gem` with MakerDAO Stable Tokens.
      * @param owner The address receiving `gem`.
      * @param value The amount of `gem` bought. [`gem` precision].
-     * @param fee The fee in Dai paid by the user. [`wad`].
+     * @param fee The fee in MakerDAO Stable Tokens paid by the user. [`wad`].
      */
     event BuyGem(address indexed owner, uint256 value, uint256 fee);
     /**
-     * @notice The contract was filled with Dai.
-     * @param wad The amount of Dai filled.
+     * @notice The contract was filled with MakerDAO Stable Tokens.
+     * @param wad The amount of MakerDAO Stable Tokens filled.
      */
     event Fill(uint256 wad);
     /**
-     * @notice The contract was trimmed of excess Dai.
-     * @param wad The amount of Dai trimmed.
+     * @notice The contract was trimmed of excess MakerDAO Stable Tokens.
+     * @param wad The amount of MakerDAO Stable Tokens trimmed.
      */
     event Trim(uint256 wad);
     /**
-     * @notice Dai accumulated as swap fees was added to the surplus buffer.
-     * @param wad The amount of Dai added.
+     * @notice MakerDAO Stable Tokens accumulated as swap fees was added to the surplus buffer.
+     * @param wad The amount of MakerDAO Stable Tokens added.
      */
     event Chug(uint256 wad);
 
@@ -169,21 +170,21 @@ contract DssLitePsm {
 
     /**
      * @param ilk_ The collateral type identifier.
-     * @param gem_ The gem to exchange with Dai.
-     * @param daiJoin_ The Dai adapter.
+     * @param gem_ The gem to exchange with MakerDAO Stable Tokens.
+     * @param daiJoin_ The MakerDAO Stable Tokens adapter.
      * @param pocket_ The ultimate holder of `gem`.
      */
     constructor(bytes32 ilk_, address gem_, address daiJoin_, address pocket_) {
         ilk = ilk_;
         gem = GemLike(gem_);
-        daiJoin = DaiJoinLike(daiJoin_);
-        vat = VatLike(daiJoin.vat());
-        dai = GemLike(daiJoin.dai());
+        nativeJoin = NativeJoinLike(daiJoin_);
+        vat = VatLike(nativeJoin.vat());
+        nativeToken = GemLike(nativeJoin.dai());
         pocket = pocket_;
 
         to18ConversionFactor = 10 ** (18 - gem.decimals());
 
-        dai.approve(daiJoin_, type(uint256).max);
+        nativeToken.approve(daiJoin_, type(uint256).max);
         vat.hope(daiJoin_);
 
         wards[msg.sender] = 1;
@@ -264,6 +265,26 @@ contract DssLitePsm {
     function file(bytes32 what, address data) external auth {
         if (what == "vow") {
             vow = data;
+        } else if (what == "nativeJoin") {
+            NativeJoinLike newNativeJoin = NativeJoinLike(data);
+            require(newNativeJoin.vat() == address(vat), "DssLitePsm/vat-mistmatch");
+
+            // Set up new permissions.
+            GemLike newNativeToken = GemLike(newNativeJoin.dai());
+            newNativeToken.approve(address(newNativeJoin), type(uint256).max);
+            vat.hope(address(newNativeJoin));
+
+            // Swap the outstanding balance for the new native token.
+            uint256 balance = nativeToken.balanceOf(address(this));
+            nativeJoin.join(address(this), balance);
+            newNativeJoin.exit(address(this), balance);
+
+            // Clean up previous permissions.
+            vat.nope(address(nativeJoin));
+            nativeToken.approve(address(nativeJoin), 0);
+
+            nativeJoin = newNativeJoin;
+            nativeToken = newNativeToken;
         } else {
             revert("DssLitePsm/file-unrecognized-param");
         }
@@ -301,98 +322,98 @@ contract DssLitePsm {
     //////////////////////////////////*/
 
     /**
-     * @notice Function that swaps `gem` into Dai.
+     * @notice Function that swaps `gem` into MakerDAO Stable Tokens.
      * @dev Reverts if `tin` is set to `HALTED`.
-     * @param usr The destination of the bought Dai.
+     * @param usr The destination of the bought MakerDAO Stable Tokens.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
-     * @return daiOutWad The amount of Dai bought.
+     * @return outWad The amount of MakerDAO Stable Tokens bought.
      */
-    function sellGem(address usr, uint256 gemAmt) external returns (uint256 daiOutWad) {
+    function sellGem(address usr, uint256 gemAmt) external returns (uint256 outWad) {
         uint256 tin_ = tin;
         require(tin_ != HALTED, "DssLitePsm/sell-gem-halted");
-        daiOutWad = _sellGem(usr, gemAmt, tin_);
+        outWad = _sellGem(usr, gemAmt, tin_);
     }
 
     /**
-     * @notice Function that swaps `gem` into Dai without any fees.
+     * @notice Function that swaps `gem` into MakerDAO Stable Tokens without any fees.
      * @dev Only users whitelisted through `kiss()` can call this function.
      *      Reverts if `tin` is set to `HALTED`.
-     * @param usr The destination of the bought Dai.
+     * @param usr The destination of the bought MakerDAO Stable Tokens.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
-     * @return daiOutWad The amount of Dai bought.
+     * @return outWad The amount of MakerDAO Stable Tokens bought.
      */
-    function sellGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiOutWad) {
+    function sellGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 outWad) {
         require(tin != HALTED, "DssLitePsm/sell-gem-halted");
-        daiOutWad = _sellGem(usr, gemAmt, 0);
+        outWad = _sellGem(usr, gemAmt, 0);
     }
 
     /**
-     * @notice Internal function that implements the logic to swaps `gem` into Dai.
-     * @param usr The destination of the bought Dai.
+     * @notice Internal function that implements the logic to swaps `gem` into MakerDAO Stable Tokens.
+     * @param usr The destination of the bought MakerDAO Stable Tokens.
      * @param gemAmt The amount of gem to sell. [`gem` precision].
      * @param tin_ The fee rate applicable to the swap [`1 * WAD` = 100%].
-     * @return daiOutWad The amount of Dai bought.
+     * @return outWad The amount of MakerDAO Stable Tokens bought.
      */
-    function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 daiOutWad) {
-        daiOutWad = gemAmt * to18ConversionFactor;
+    function _sellGem(address usr, uint256 gemAmt, uint256 tin_) internal returns (uint256 outWad) {
+        outWad = gemAmt * to18ConversionFactor;
         uint256 fee;
         if (tin_ > 0) {
-            fee = daiOutWad * tin_ / WAD;
+            fee = outWad * tin_ / WAD;
             // At this point, `tin_ <= 1 WAD`, so an underflow is not possible.
             unchecked {
-                daiOutWad -= fee;
+                outWad -= fee;
             }
         }
 
         gem.transferFrom(msg.sender, pocket, gemAmt);
         // This can consume the whole balance including system fees not withdrawn.
-        dai.transfer(usr, daiOutWad);
+        nativeToken.transfer(usr, outWad);
 
         emit SellGem(usr, gemAmt, fee);
     }
 
     /**
-     * @notice Function that swaps Dai into `gem`.
+     * @notice Function that swaps MakerDAO Stable Tokens into `gem`.
      * @dev Reverts if `tout` is set to `HALTED`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
-     * @return daiInWad The amount of Dai required to sell.
+     * @return inWad The amount of MakerDAO Stable Tokens required to sell.
      */
-    function buyGem(address usr, uint256 gemAmt) external returns (uint256 daiInWad) {
+    function buyGem(address usr, uint256 gemAmt) external returns (uint256 inWad) {
         uint256 tout_ = tout;
         require(tout_ != HALTED, "DssLitePsm/buy-gem-halted");
-        daiInWad = _buyGem(usr, gemAmt, tout_);
+        inWad = _buyGem(usr, gemAmt, tout_);
     }
 
     /**
-     * @notice Function that swaps Dai into `gem` without any fees.
+     * @notice Function that swaps MakerDAO Stable Tokens into `gem` without any fees.
      * @dev Only users whitelisted through `kiss()` can call this function.
      *      Reverts if `tout` is set to `HALTED`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
-     * @return daiInWad The amount of Dai required to sell.
+     * @return inWad The amount of MakerDAO Stable Tokens required to sell.
      */
-    function buyGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 daiInWad) {
+    function buyGemNoFee(address usr, uint256 gemAmt) external toll returns (uint256 inWad) {
         require(tout != HALTED, "DssLitePsm/buy-gem-halted");
-        daiInWad = _buyGem(usr, gemAmt, 0);
+        inWad = _buyGem(usr, gemAmt, 0);
     }
 
     /**
-     * @notice Internal function implementing the logic that swaps Dai into `gem`.
+     * @notice Internal function implementing the logic that swaps MakerDAO Stable Tokens into `gem`.
      * @param usr The destination of the bought gems.
      * @param gemAmt The amount of gem to buy. [`gem` precision].
      * @param tout_ The fee rate applicable to the swap [`1 * WAD` = 100%].
-     * @return daiInWad The amount of Dai required to sell.
+     * @return inWad The amount of MakerDAO Stable Tokens required to sell.
      */
-    function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 daiInWad) {
-        daiInWad = gemAmt * to18ConversionFactor;
+    function _buyGem(address usr, uint256 gemAmt, uint256 tout_) internal returns (uint256 inWad) {
+        inWad = gemAmt * to18ConversionFactor;
         uint256 fee;
         if (tout_ > 0) {
-            fee = daiInWad * tout_ / WAD;
-            daiInWad += fee;
+            fee = inWad * tout_ / WAD;
+            inWad += fee;
         }
 
-        dai.transferFrom(msg.sender, address(this), daiInWad);
+        nativeToken.transferFrom(msg.sender, address(this), inWad);
         gem.transferFrom(pocket, usr, gemAmt);
 
         emit BuyGem(usr, gemAmt, fee);
@@ -403,10 +424,10 @@ contract DssLitePsm {
     //////////////////////////////////*/
 
     /**
-     * @notice Mints Dai into this contract.
+     * @notice Mints MakerDAO Stable Tokens into this contract.
      * @dev Both `buf`, the local and global debt ceilings limit the actual minted amount.
      *      Notice that `gem` donations or extraneous debt repayments can also affect the amount.
-     * @return wad The amount of Dai minted.
+     * @return wad The amount of MakerDAO Stable Tokens minted.
      */
     function fill() external returns (uint256 wad) {
         wad = rush();
@@ -414,22 +435,22 @@ contract DssLitePsm {
 
         // The `urn` for this contract in the `Vat` is expected to have "unlimited" `ink`.
         vat.frob(ilk, address(this), address(0), address(this), 0, _int256(wad));
-        daiJoin.exit(address(this), wad);
+        nativeJoin.exit(address(this), wad);
 
         emit Fill(wad);
     }
 
     /**
-     * @notice Burns any excess of Dai from this contract.
+     * @notice Burns any excess of MakerDAO Stable Tokens from this contract.
      * @dev The total outstanding debt can still be larger than the debt ceiling after `trim`.
      *      Additional `buyGem` calls will enable further `trim` calls.
-     * @return wad The amount of Dai burned.
+     * @return wad The amount of MakerDAO Stable Tokens burned.
      */
     function trim() external returns (uint256 wad) {
         wad = gush();
         require(wad > 0, "DssLitePsm/nothing-to-trim");
 
-        daiJoin.join(address(this), wad);
+        nativeJoin.join(address(this), wad);
         // The `urn` for this contract in the `Vat` is expected to have "unlimited" `ink`.
         vat.frob(ilk, address(this), address(0), address(this), 0, -_int256(wad));
 
@@ -447,7 +468,7 @@ contract DssLitePsm {
         wad = cut();
         require(wad > 0, "DssLitePsm/nothing-to-chug");
 
-        daiJoin.join(vow_, wad);
+        nativeJoin.join(vow_, wad);
 
         emit Chug(wad);
     }
@@ -457,8 +478,8 @@ contract DssLitePsm {
     //////////////////////////////////*/
 
     /**
-     * @notice Returns the missing Dai that can be filled into this contract.
-     * @return wad The amount of Dai.
+     * @notice Returns the missing MakerDAO Stable Tokens that can be filled into this contract.
+     * @return wad The amount of MakerDAO Stable Tokens.
      */
     function rush() public view returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
@@ -476,8 +497,8 @@ contract DssLitePsm {
     }
 
     /**
-     * @notice Returns the excess Dai that can be trimmed from this contract.
-     * @return wad The amount of Dai.
+     * @notice Returns the excess MakerDAO Stable Tokens that can be trimmed from this contract.
+     * @return wad The amount of MakerDAO Stable Tokens.
      */
     function gush() public view returns (uint256 wad) {
         (uint256 Art, uint256 rate,, uint256 line,) = vat.ilks(ilk);
@@ -491,21 +512,21 @@ contract DssLitePsm {
                 _subcap(Art, line / RAY)
             ),
             // Cannot burn more than the current balance.
-            dai.balanceOf(address(this))
+            nativeToken.balanceOf(address(this))
         );
     }
 
     /**
      * @notice Returns the amount of swapping fees that can be chugged by this contract.
-     * @dev To keep `_sellGem` gas usage low, it allows users to take pre-minted Dai up to the whole balance, regardless
+     * @dev To keep `_sellGem` gas usage low, it allows users to take pre-minted MakerDAO Stable Tokens up to the whole balance, regardless
      *      if part of it consist of collected fees.
-     *      If there is not enough balance, it will need to wait for new pre-minted Dai to be generated or Dai swapped
+     *      If there is not enough balance, it will need to wait for new pre-minted MakerDAO Stable Tokens to be generated or MakerDAO Stable Tokens swapped
      *      back to complete the withdrawal of fees.
-     * @return wad The amount of Dai.
+     * @return wad The amount of MakerDAO Stable Tokens.
      */
     function cut() public view returns (uint256 wad) {
         (, uint256 art) = vat.urns(ilk, address(this));
-        uint256 cash = dai.balanceOf(address(this));
+        uint256 cash = nativeToken.balanceOf(address(this));
 
         wad = _min(cash, cash + gem.balanceOf(pocket) * to18ConversionFactor - art);
     }
@@ -538,5 +559,23 @@ contract DssLitePsm {
      */
     function live() external view returns (uint256) {
         return vat.live();
+    }
+
+    /**
+     * @notice Alias for `nativeJoin`.
+     * @dev This function exists only to keep ABI compatibility with other PSM implementations.
+     * @return The address of the contract.
+     */
+    function daiJoin() external view returns (address) {
+        return address(nativeJoin);
+    }
+
+    /**
+     * @notice Alias for `nativeToken`.
+     * @dev This function exists only to keep ABI compatibility with other PSM implementations.
+     * @return The address of the contract.
+     */
+    function dai() external view returns (address) {
+        return address(nativeToken);
     }
 }
