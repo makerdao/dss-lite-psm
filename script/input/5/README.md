@@ -1,1 +1,0 @@
-Inputs for Goerli scripts.

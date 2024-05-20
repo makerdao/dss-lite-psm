@@ -1,1 +1,0 @@
-Outputs for Goerli scripts.

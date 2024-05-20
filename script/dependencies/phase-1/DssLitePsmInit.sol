@@ -19,11 +19,11 @@ import {DssInstance} from "dss-test/MCD.sol";
 import {DssLitePsmInstance} from "./DssLitePsmInstance.sol";
 
 struct DssLitePsmInitConfig {
-    bytes32 srcPsmKey;
-    bytes32 dstPsmKey;
-    bytes32 dstPocketKey;
+    bytes32 psmKey;
+    bytes32 pocketKey;
     bytes32 psmMomKey;
     address pocket;
+    address pip;
     uint256 buf;
     uint256 tin;
     uint256 tout;
@@ -32,26 +32,13 @@ struct DssLitePsmInitConfig {
     uint256 ttl;
 }
 
-// Required to avoid "stack too deep" errors
-struct SrcPsm {
-    bytes32 ilk;
-    address psm;
-    uint256 line;
-    uint256 art;
-    address gemJoin;
-    address gem;
-    address pip;
-    string name;
-    string symbol;
-    uint256 dec;
-}
-
 interface DssLitePsmLike {
+    function daiJoin() external view returns (address);
+    function dec() external view returns (uint256);
     function file(bytes32, address) external;
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
     function gem() external view returns (address);
-    function daiJoin() external view returns (address);
     function ilk() external view returns (bytes32);
     function pocket() external view returns (address);
     function rely(address) external;
@@ -76,8 +63,11 @@ interface GemJoinLike {
 }
 
 interface GemLike {
-    function approve(address, uint256) external;
     function allowance(address, address) external view returns (uint256);
+    function approve(address, uint256) external;
+    function decimals() external view returns (uint256);
+    function name() external view returns (string memory);
+    function symbol() external view returns (string memory);
 }
 
 interface AutoLineLike {
@@ -87,19 +77,6 @@ interface AutoLineLike {
 }
 
 interface IlkRegistryLike {
-    function info(bytes32 ilk)
-        external
-        view
-        returns (
-            string memory name,
-            string memory symbol,
-            uint256 class,
-            uint256 dec,
-            address gem,
-            address pip,
-            address join,
-            address xlip
-        );
     function put(
         bytes32 _ilk,
         address _join,
@@ -130,9 +107,7 @@ library DssLitePsmInit {
 
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
         // Sanity checks
-        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmInit/src-psm-same-key-dst-psm");
-        require(cfg.srcPsmKey != cfg.dstPocketKey, "DssLitePsmInit/src-psm-same-key-pocket");
-        require(cfg.dstPsmKey != cfg.dstPocketKey, "DssLitePsmInit/dst-psm-same-key-pocket");
+        require(cfg.psmKey != cfg.pocketKey, "DssLitePsmInit/dst-psm-same-key-pocket");
 
         require(cfg.buf > 0, "DssLitePsmInit/invalid-buf");
         require(cfg.gap > 0, "DssLitePsmInit/invalid-gap");
@@ -143,25 +118,7 @@ library DssLitePsmInit {
         bytes32 ilk = DssLitePsmLike(inst.litePsm).ilk();
         address gem = DssLitePsmLike(inst.litePsm).gem();
 
-        SrcPsm memory src;
-        src.psm = dss.chainlog.getAddress(cfg.srcPsmKey);
-        src.ilk = DssPsmLike(src.psm).ilk();
-        require(src.ilk != ilk, "DssLitePsmInit/invalid-ilk-reuse");
-
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
-        (src.name, src.symbol,, src.dec, src.gem, src.pip, src.gemJoin,) = reg.info(src.ilk);
-
-        require(gem == src.gem, "DssLitePsmInit/src-dst-gem-mismatch");
-        require(uint256(PipLike(src.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
-
-        {
-            uint256 srcIlkArt;
-            uint256 srcInk;
-            (srcIlkArt,,, src.line,) = dss.vat.ilks(src.ilk);
-            (srcInk, src.art) = dss.vat.urns(src.ilk, src.psm);
-            require(srcIlkArt == src.art, "DssLitePsmInit/src-ilk-urn-art-mismatch");
-            require(srcInk == src.art, "DssLitePsmInit/src-ink-art-mismatch");
-        }
 
         // 0. Ensure `litePsm` can spend `gem` on behalf of `pocket`.
         require(
@@ -173,21 +130,12 @@ library DssLitePsmInit {
         dss.vat.init(ilk);
         dss.jug.init(ilk);
         dss.spotter.file(ilk, "mat", 1 * RAY);
-        dss.spotter.file(ilk, "pip", src.pip);
+        require(uint256(PipLike(cfg.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
+        dss.spotter.file(ilk, "pip", cfg.pip);
         dss.spotter.poke(ilk);
 
-        // 2. Set interim params to accommodate the new PSM.
-        {
-            uint256 initLine = src.art * RAY;
-            // Ensure we will be able to call `fill` on step 7.
-            require(cfg.maxLine > initLine, "DssLitePsmInit/max-line-too-low");
-            dss.vat.file("Line", dss.vat.Line() + initLine);
-            dss.vat.file(ilk, "line", initLine);
-        }
+        // 2. Initial `litePsm` setup
 
-        // 3. Initial `litePsm` setup
-
-        // 3.1. Add unlimited virtual collateral to `litePsm`.
         {
             // Set `ink` to the largest value that won't cause an overflow for `ink * spot`.
             // Notice that `litePsm` assumes that:
@@ -198,50 +146,12 @@ library DssLitePsmInit {
             dss.vat.grab(ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
         }
 
-        // 3.2. Pre-mint enough Dai liquidity to clear `src.psm`.
-        DssLitePsmLike(inst.litePsm).file("buf", src.art);
-        DssLitePsmLike(inst.litePsm).file("tin", 0);
-        DssLitePsmLike(inst.litePsm).file("tout", 0);
-        DssLitePsmLike(inst.litePsm).fill();
-
-        // 4. Move PSM gems.
-        uint256 srcGemAmt = src.art / DssLitePsmLike(inst.litePsm).to18ConversionFactor();
-
-        // 4.1. Grab the entire collateral and the entire debt from the source PSM into the executing contract.
-        {
-            // Notice that we enforce that `srcInk == src.art`.
-            int256 dart = -_int256(src.art);
-            dss.vat.grab(src.ilk, src.psm, address(this), address(this), dart, dart);
-        }
-
-        // 4.2. Transfer the grabbed collateral to the executing contract.
-        GemJoinLike(src.gemJoin).exit(address(this), srcGemAmt);
-
-        // 4.3. Sell the grabbed collateral gems into the new PSM.
-        GemLike(gem).approve(inst.litePsm, srcGemAmt);
-        uint256 daiOutWad = DssLitePsmLike(inst.litePsm).sellGem(address(this), srcGemAmt);
-        require(daiOutWad == src.art, "DssLitePsmInit/invalid-dai-amount");
-
-        // 4.4. Convert ERC20 Dai into Vat Dai.
-        dss.dai.approve(address(dss.daiJoin), daiOutWad);
-        dss.daiJoin.join(address(this), daiOutWad);
-
-        // 4.5. Erase the bad debt generated in 4.1.
-        dss.vat.heal(src.art * RAY);
-
-        // 5. Update auto-line.
+        // 3. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
-
-        // 5.1. Set `src.psm` debt ceiling to zero.
-        autoLine.remIlk(src.ilk);
-        dss.vat.file(src.ilk, "line", 0);
-        dss.vat.file("Line", dss.vat.Line() - src.line);
-
-        // 5.2. Set auto-line for the new PSM.
         autoLine.setIlk(ilk, cfg.maxLine, cfg.gap, cfg.ttl);
         autoLine.exec(ilk);
 
-        // 6. Set `litePsm` config params.
+        // 4. Set `litePsm` config params.
         DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
         DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
         DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
@@ -261,17 +171,17 @@ library DssLitePsmInit {
             ilk,
             address(0), // No `gemJoin` for `litePsm`
             gem,
-            src.dec,
+            GemLike(gem).decimals(),
             REG_CLASS_JOINLESS,
-            src.pip,
+            cfg.pip,
             address(0), // No `clip` for `litePsm`
-            src.name,
-            src.symbol
+            GemLike(gem).name(),
+            GemLike(gem).symbol()
         );
 
         // 11. Add `litePsm`, `mom` and `pocket` to the chainlog.
-        dss.chainlog.setAddress(cfg.dstPsmKey, inst.litePsm);
+        dss.chainlog.setAddress(cfg.psmKey, inst.litePsm);
         dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
-        dss.chainlog.setAddress(cfg.dstPocketKey, cfg.pocket);
+        dss.chainlog.setAddress(cfg.pocketKey, cfg.pocket);
     }
 }
