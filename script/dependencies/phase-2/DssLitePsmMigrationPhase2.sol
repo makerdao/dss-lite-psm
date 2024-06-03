@@ -55,24 +55,20 @@ struct DstPsm {
 }
 
 interface DssLitePsmLike {
-    function file(bytes32, address) external;
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
-    function gem() external view returns (address);
-    function daiJoin() external view returns (address);
     function ilk() external view returns (bytes32);
-    function pocket() external view returns (address);
-    function rely(address) external;
     function sellGem(address, uint256) external returns (uint256);
     function to18ConversionFactor() external view returns (uint256);
 }
 
-interface DssLitePsmMomLike {
-    function setAuthority(address) external;
-}
-
 interface DssPsmLike {
     function ilk() external view returns (bytes32);
+    function file(bytes32, uint256) external;
+}
+
+interface DssLitePsmMomLike {
+    function setAuthority(address) external;
 }
 
 interface PipLike {
@@ -191,7 +187,7 @@ library DssLitePsmMigrationPhase2 {
         DssLitePsmLike(dst.psm).file("tout", cfg.dstTout);
 
         // 6. Set `src.psm` config params
-        DssLitePsmLike(src.psm).file("tin", cfg.srcTin);
-        DssLitePsmLike(src.psm).file("tout", cfg.srcTout);
+        DssPsmLike(src.psm).file("tin", cfg.srcTin);
+        DssPsmLike(src.psm).file("tout", cfg.srcTout);
     }
 }

@@ -34,7 +34,6 @@ struct DssLitePsmInitConfig {
 
 interface DssLitePsmLike {
     function daiJoin() external view returns (address);
-    function dec() external view returns (uint256);
     function file(bytes32, address) external;
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);

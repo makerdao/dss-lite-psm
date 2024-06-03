@@ -49,14 +49,9 @@ struct DstPsm {
 }
 
 interface DssLitePsmLike {
-    function file(bytes32, address) external;
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
-    function gem() external view returns (address);
-    function daiJoin() external view returns (address);
     function ilk() external view returns (bytes32);
-    function pocket() external view returns (address);
-    function rely(address) external;
     function sellGem(address, uint256) external returns (uint256);
     function to18ConversionFactor() external view returns (uint256);
 }
