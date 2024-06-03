@@ -17,21 +17,21 @@ pragma solidity ^0.8.16;
 
 import {DssInstance} from "dss-test/MCD.sol";
 
-struct DssLitePsmMigrationConfig {
-    bytes32 srcPsmKey;
-    uint256 srcTin;
-    uint256 srcTout;
-    uint256 srcMaxLine;
-    uint256 srcGap;
-    uint256 srcTtl;
-    bytes32 dstPsmKey;
-    uint256 dstTin;
-    uint256 dstTout;
-    uint256 dstMaxLine;
-    uint256 dstGap;
-    uint256 dstTtl;
-    uint256 buf;
-    uint256 rump;
+struct DssLitePsmMigrationPhase2Config {
+    bytes32 srcPsmKey;  // Chainlog key
+    uint256 srcTin;     // [wad] 10**18 == 100%
+    uint256 srcTout;    // [wad] 10**18 == 100%
+    uint256 srcMaxLine; // [rad]
+    uint256 srcGap;     // [rad]
+    uint256 srcTtl;     // [seconds]
+    uint256 srcRump;    // [wad] Gems remaining in the source PSM after the migration .
+    bytes32 dstPsmKey;  // Chainlog key
+    uint256 dstTin;     // [wad] 10**18 = 100%
+    uint256 dstTout;    // [wad] 10**18 = 100%
+    uint256 dstMaxLine; // [rad]
+    uint256 dstGap;     // [rad]
+    uint256 dstTtl;     // [seconds]
+    uint256 dstBuf;     // [wad]
 }
 
 // Required to avoid "stack too deep" errors
@@ -99,7 +99,7 @@ interface IlkRegistryLike {
     function join(bytes32 ilk) external view returns (address);
 }
 
-library DssLitePsmMigration {
+library DssLitePsmMigrationPhase2 {
     /// @dev Workaround to explicitly revert with an arithmetic error.
     string internal constant ARITHMETIC_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x11));
 
@@ -114,11 +114,11 @@ library DssLitePsmMigration {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
     }
 
-    function migrate(DssInstance memory dss, DssLitePsmMigrationConfig memory cfg) internal {
+    function migrate(DssInstance memory dss, DssLitePsmMigrationPhase2Config memory cfg) internal {
         // Sanity checks
-        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmMigration/src-psm-same-key-dst-psm");
-        require(cfg.buf > 0, "DssLitePsmMigration/invalid-buf");
-        require(cfg.dstGap > 0, "DssLitePsmMigration/invalid-gap");
+        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmMigrationPhase2/src-psm-same-key-dst-psm");
+        require(cfg.dstBuf > 0, "DssLitePsmMigrationPhase2/invalid-buf");
+        require(cfg.dstGap > 0, "DssLitePsmMigrationPhase2/invalid-gap");
 
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
 
@@ -135,15 +135,15 @@ library DssLitePsmMigration {
         src.gemJoin = reg.join(src.ilk);
         (src.ink, src.art) = dss.vat.urns(src.ilk, src.psm);
 
-        require(dst.ilk != src.ilk, "DssLitePsmMigration/invalid-ilk-reuse");
-        require(dst.gem == src.gem, "DssLitePsmMigration/dst-src-gem-mismatch");
-        require(src.ink == src.art, "DssLitePsmMigration/src-ink-art-mismatch");
+        require(dst.ilk != src.ilk, "DssLitePsmMigrationPhase2/invalid-ilk-reuse");
+        require(dst.gem == src.gem, "DssLitePsmMigrationPhase2/dst-src-gem-mismatch");
+        require(src.ink == src.art, "DssLitePsmMigrationPhase2/src-ink-art-mismatch");
 
         // 1. Set interim params to accommodate the migration.
 
         // 1.1. Ensure we will be able to call `fill` below by leaving enough room in the debt ceiling.
         uint256 totalLine = (dst.art + src.art) * RAY;
-        require(cfg.dstMaxLine > totalLine, "DssLitePsmMigration/max-line-too-low");
+        require(cfg.dstMaxLine > totalLine, "DssLitePsmMigrationPhase2/max-line-too-low");
         dss.vat.file("Line", dss.vat.Line() + (src.art * RAY));
         dss.vat.file(dst.ilk, "line", totalLine);
 
@@ -153,11 +153,11 @@ library DssLitePsmMigration {
         DssLitePsmLike(dst.psm).file("tout", 0);
         DssLitePsmLike(dst.psm).fill();
 
-        // 3. Move gems from `src.psm` to `dst.psm`. cfg.rump amount is left behind on `src.psm`
-        uint256 srcGemAmt = ((src.ink - cfg.rump) / DssLitePsmLike(dst.psm).to18ConversionFactor());
+        // 3. Move gems from `src.psm` to `dst.psm`. cfg.srcRump amount is left behind on `src.psm`
+        uint256 srcGemAmt = ((src.ink - cfg.srcRump) / DssLitePsmLike(dst.psm).to18ConversionFactor());
 
         // 3.1. Grab the collateral from `src.psm` into the executing contract, debt also grabbed here to maintain src.ink == src.art
-        dss.vat.grab(src.ilk, src.psm, address(this), address(this), -_int256(src.ink - cfg.rump), -_int256(src.art - cfg.rump));
+        dss.vat.grab(src.ilk, src.psm, address(this), address(this), -_int256(src.ink - cfg.srcRump), -_int256(src.art - cfg.srcRump));
 
         // 3.2. Transfer the grabbed collateral to the executing contract.
         GemJoinLike(src.gemJoin).exit(address(this), srcGemAmt);
@@ -165,14 +165,14 @@ library DssLitePsmMigration {
         // 3.3. Sell the grabbed collateral gems to `dst.psm`.
         GemLike(dst.gem).approve(dst.psm, srcGemAmt);
         uint256 daiOutWad = DssLitePsmLike(dst.psm).sellGem(address(this), srcGemAmt);
-        require(daiOutWad == src.art - cfg.rump, "DssLitePsmMigration/invalid-dai-amount");
+        require(daiOutWad == src.art - cfg.srcRump, "DssLitePsmMigrationPhase2/invalid-dai-amount");
 
         // 3.4. Convert ERC20 Dai into Vat Dai.
         dss.dai.approve(address(dss.daiJoin), daiOutWad);
         dss.daiJoin.join(address(this), daiOutWad);
 
         // 3.5. Erase the bad debt generated by `vat.grab()`.
-        dss.vat.heal((src.art - cfg.rump) * RAY);
+        dss.vat.heal((src.art - cfg.srcRump) * RAY);
 
         // 4. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
@@ -186,7 +186,7 @@ library DssLitePsmMigration {
         autoLine.exec(src.ilk);
 
         // 5. Set `dst.psm` config params.
-        DssLitePsmLike(dst.psm).file("buf", cfg.buf);
+        DssLitePsmLike(dst.psm).file("buf", cfg.dstBuf);
         DssLitePsmLike(dst.psm).file("tin", cfg.dstTin);
         DssLitePsmLike(dst.psm).file("tout", cfg.dstTout);
 

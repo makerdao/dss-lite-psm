@@ -21,7 +21,7 @@ import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../phase-1/DssLitePsmDeploy.sol";
 import {DssLitePsmInstance} from "../phase-1/DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "../phase-1/DssLitePsmInit.sol";
-import {DssLitePsmMigration, DssLitePsmMigrationConfig} from "../phase-3/DssLitePsmMigration.sol";
+import {DssLitePsmMigrationPhase3, DssLitePsmMigrationPhase3Config} from "../phase-3/DssLitePsmMigrationPhase3.sol";
 
 interface ProxyLike {
     function exec(address usr, bytes memory fax) external returns (bytes memory out);
@@ -58,12 +58,12 @@ contract InitCaller {
 }
 
 contract MigrationCaller {
-    function migrate(DssInstance memory dss, DssLitePsmMigrationConfig memory cfg) external {
-        DssLitePsmMigration.migrate(dss, cfg);
+    function migrate(DssInstance memory dss, DssLitePsmMigrationPhase3Config memory cfg) external {
+        DssLitePsmMigrationPhase3.migrate(dss, cfg);
     }
 }
 
-contract DssLitePsmMigrationTest is DssTest {
+contract DssLitePsmMigrationPhase3Test is DssTest {
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant GEM_KEY = "USDC";
@@ -85,7 +85,7 @@ contract DssLitePsmMigrationTest is DssTest {
     AutoLineLike autoLine;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig initCfg;
-    DssLitePsmMigrationConfig migCfg;
+    DssLitePsmMigrationPhase3Config migCfg;
     DssLitePsm litePsm;
     DssLitePsmMom mom;
     GemLike gem;
@@ -144,7 +144,7 @@ contract DssLitePsmMigrationTest is DssTest {
             ttl: 8 hours
         });
 
-        migCfg = DssLitePsmMigrationConfig({
+        migCfg = DssLitePsmMigrationPhase3Config({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
             buf: 50_000_000 * WAD,

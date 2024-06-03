@@ -17,15 +17,15 @@ pragma solidity ^0.8.16;
 
 import {DssInstance} from "dss-test/MCD.sol";
 
-struct DssLitePsmMigrationConfig {
-    bytes32 srcPsmKey;
-    bytes32 dstPsmKey;
-    uint256 buf;
-    uint256 tin;
-    uint256 tout;
-    uint256 maxLine;
-    uint256 gap;
-    uint256 ttl;
+struct DssLitePsmMigrationPhase3Config {
+    bytes32 srcPsmKey; // Chainlog key
+    bytes32 dstPsmKey; // Chainlog key
+    uint256 buf;       // [wad]
+    uint256 tin;       // [wad] 10**18 = 100%
+    uint256 tout;      // [wad] 10**18 = 100%
+    uint256 maxLine;   // [rad]
+    uint256 gap;       // [rad]
+    uint256 ttl;       // [secods]
 }
 
 // Required to avoid "stack too deep" errors
@@ -93,7 +93,7 @@ interface IlkRegistryLike {
     function join(bytes32 ilk) external view returns (address);
 }
 
-library DssLitePsmMigration {
+library DssLitePsmMigrationPhase3 {
     /// @dev Workaround to explicitly revert with an arithmetic error.
     string internal constant ARITHMETIC_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x11));
 
@@ -108,11 +108,11 @@ library DssLitePsmMigration {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
     }
 
-    function migrate(DssInstance memory dss, DssLitePsmMigrationConfig memory cfg) internal {
+    function migrate(DssInstance memory dss, DssLitePsmMigrationPhase3Config memory cfg) internal {
         // Sanity checks
-        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmMigration/src-psm-same-key-dst-psm");
-        require(cfg.buf > 0, "DssLitePsmMigration/invalid-buf");
-        require(cfg.gap > 0, "DssLitePsmMigration/invalid-gap");
+        require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmMigrationPhase3/src-psm-same-key-dst-psm");
+        require(cfg.buf > 0, "DssLitePsmMigrationPhase3/invalid-buf");
+        require(cfg.gap > 0, "DssLitePsmMigrationPhase3/invalid-gap");
 
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
 
@@ -129,15 +129,15 @@ library DssLitePsmMigration {
         src.gemJoin = reg.join(src.ilk);
         (src.ink, src.art) = dss.vat.urns(src.ilk, src.psm);
 
-        require(dst.ilk != src.ilk, "DssLitePsmMigration/invalid-ilk-reuse");
-        require(dst.gem == src.gem, "DssLitePsmMigration/dst-src-gem-mismatch");
-        require(src.ink == src.art, "DssLitePsmMigration/src-ink-art-mismatch");
+        require(dst.ilk != src.ilk, "DssLitePsmMigrationPhase3/invalid-ilk-reuse");
+        require(dst.gem == src.gem, "DssLitePsmMigrationPhase3/dst-src-gem-mismatch");
+        require(src.ink == src.art, "DssLitePsmMigrationPhase3/src-ink-art-mismatch");
 
         // 1. Set interim params to accommodate the migration.
 
         // 1.1. Ensure we will be able to call `fill` below by leaving enough room in the debt ceiling.
         uint256 totalLine = (dst.art + src.art) * RAY;
-        require(cfg.maxLine > totalLine, "DssLitePsmMigration/max-line-too-low");
+        require(cfg.maxLine > totalLine, "DssLitePsmMigrationPhase3/max-line-too-low");
         dss.vat.file("Line", dss.vat.Line() + (src.art * RAY));
         dss.vat.file(dst.ilk, "line", totalLine);
 
@@ -159,7 +159,7 @@ library DssLitePsmMigration {
         // 3.3. Sell the grabbed collateral gems to `dst.psm`.
         GemLike(dst.gem).approve(dst.psm, srcGemAmt);
         uint256 daiOutWad = DssLitePsmLike(dst.psm).sellGem(address(this), srcGemAmt);
-        require(daiOutWad == src.art, "DssLitePsmMigration/invalid-dai-amount");
+        require(daiOutWad == src.art, "DssLitePsmMigrationPhase3/invalid-dai-amount");
 
         // 3.4. Convert ERC20 Dai into Vat Dai.
         dss.dai.approve(address(dss.daiJoin), daiOutWad);

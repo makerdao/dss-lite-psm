@@ -21,7 +21,7 @@ import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../phase-1/DssLitePsmDeploy.sol";
 import {DssLitePsmInstance} from "../phase-1/DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "../phase-1/DssLitePsmInit.sol";
-import {DssLitePsmMigration, DssLitePsmMigrationConfig} from "../phase-2/DssLitePsmMigration.sol";
+import {DssLitePsmMigrationPhase2, DssLitePsmMigrationPhase2Config} from "../phase-2/DssLitePsmMigrationPhase2.sol";
 
 interface ProxyLike {
     function exec(address usr, bytes memory fax) external returns (bytes memory out);
@@ -59,12 +59,12 @@ contract InitCaller {
 }
 
 contract MigrationCaller {
-    function migrate(DssInstance memory dss, DssLitePsmMigrationConfig memory cfg) external {
-        DssLitePsmMigration.migrate(dss, cfg);
+    function migrate(DssInstance memory dss, DssLitePsmMigrationPhase2Config memory cfg) external {
+        DssLitePsmMigrationPhase2.migrate(dss, cfg);
     }
 }
 
-contract DssLitePsmMigrationTest is DssTest {
+contract DssLitePsmMigrationPhase2Test is DssTest {
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant GEM_KEY = "USDC";
@@ -86,7 +86,7 @@ contract DssLitePsmMigrationTest is DssTest {
     AutoLineLike autoLine;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig initCfg;
-    DssLitePsmMigrationConfig migCfg;
+    DssLitePsmMigrationPhase2Config migCfg;
     DssLitePsm litePsm;
     DssLitePsmMom mom;
     GemLike gem;
@@ -145,21 +145,21 @@ contract DssLitePsmMigrationTest is DssTest {
             ttl: 8 hours
         });
 
-        migCfg = DssLitePsmMigrationConfig({
+        migCfg = DssLitePsmMigrationPhase2Config({
             srcPsmKey: SRC_PSM_KEY,
+            dstPsmKey: DST_PSM_KEY,
+            dstBuf: 50_000_000 * WAD,
             srcTin: 0.001 ether,
             srcTout: 0.001 ether,
             srcMaxLine: 2_500_000_000 * RAD,
             srcGap: 100_000_000 * RAD,
             srcTtl: 12 hours,
-            dstPsmKey: DST_PSM_KEY,
             dstTin: 0.025 ether,
             dstTout: 0.025 ether,
             dstMaxLine: 7_500_000_000 * RAD,
             dstGap: 300_000_000 * RAD,
             dstTtl: 12 hours,
-            buf: 50_000_000 * WAD,
-            rump: 100_000_000 * WAD
+            srcRump: 100_000_000 * WAD
         });
 
         vm.label(CHAINLOG, "Chainlog");
@@ -204,7 +204,7 @@ contract DssLitePsmMigrationTest is DssTest {
         {
             assertEq(litePsm.tin(), migCfg.dstTin, "after: invalid tin");
             assertEq(litePsm.tout(), migCfg.dstTout, "after: invalid tout");
-            assertEq(litePsm.buf(), migCfg.buf, "after: invalid buf");
+            assertEq(litePsm.buf(), migCfg.dstBuf, "after: invalid buf");
             assertEq(litePsm.vow(), vow, "after: invalid vow");
         }
 
@@ -216,11 +216,10 @@ contract DssLitePsmMigrationTest is DssTest {
             assertGt(globalLine, pglobalLine + (migCfg.dstGap - initCfg.gap) - srcLineReduction, "after: invalid Line change");
         }
 
-        // Old PSM still have `rump` collateral
+        // Old PSM still have `srcRump` collateral
         {
-            (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, srcPsm);
-            assertEq(srcInk, migCfg.rump, "after: src ink is not equal to rump");
-            assertEq(srcInk, srcArt, "after: src ink not equal src art");
+            (uint256 srcInk,) = dss.vat.urns(SRC_ILK, srcPsm);
+            assertEq(srcInk, migCfg.srcRump, "after: src ink is not equal to srcRump");
         }
 
         // New PSM is configured in AutoLiine
