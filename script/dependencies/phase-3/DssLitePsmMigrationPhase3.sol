@@ -25,7 +25,7 @@ struct DssLitePsmMigrationPhase3Config {
     uint256 tout;      // [wad] 10**18 = 100%
     uint256 maxLine;   // [rad]
     uint256 gap;       // [rad]
-    uint256 ttl;       // [secods]
+    uint256 ttl;       // [seconds]
 }
 
 // Required to avoid "stack too deep" errors
