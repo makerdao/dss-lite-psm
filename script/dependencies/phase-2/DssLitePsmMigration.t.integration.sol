@@ -218,8 +218,9 @@ contract DssLitePsmMigrationTest is DssTest {
 
         // Old PSM still have `rump` collateral
         {
-            (uint256 srcInk,) = dss.vat.urns(SRC_ILK, srcPsm);
+            (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, srcPsm);
             assertEq(srcInk, migCfg.rump, "after: src ink is not equal to rump");
+            assertEq(srcInk, srcArt, "after: src ink not equal src art");
         }
 
         // New PSM is configured in AutoLiine
