@@ -147,18 +147,18 @@ contract DssLitePsmMigrationTest is DssTest {
 
         migCfg = DssLitePsmMigrationConfig({
             srcPsmKey: SRC_PSM_KEY,
-            dstPsmKey: DST_PSM_KEY,
-            buf: 50_000_000 * WAD,
             srcTin: 0.001 ether,
             srcTout: 0.001 ether,
             srcMaxLine: 2_500_000_000 * RAD,
             srcGap: 100_000_000 * RAD,
             srcTtl: 12 hours,
+            dstPsmKey: DST_PSM_KEY,
             dstTin: 0.025 ether,
             dstTout: 0.025 ether,
             dstMaxLine: 7_500_000_000 * RAD,
             dstGap: 300_000_000 * RAD,
             dstTtl: 12 hours,
+            buf: 50_000_000 * WAD,
             rump: 100_000_000 * WAD
         });
 

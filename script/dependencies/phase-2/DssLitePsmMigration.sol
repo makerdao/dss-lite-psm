@@ -19,18 +19,18 @@ import {DssInstance} from "dss-test/MCD.sol";
 
 struct DssLitePsmMigrationConfig {
     bytes32 srcPsmKey;
-    bytes32 dstPsmKey;
-    uint256 buf;
     uint256 srcTin;
     uint256 srcTout;
     uint256 srcMaxLine;
     uint256 srcGap;
     uint256 srcTtl;
+    bytes32 dstPsmKey;
     uint256 dstTin;
     uint256 dstTout;
     uint256 dstMaxLine;
     uint256 dstGap;
     uint256 dstTtl;
+    uint256 buf;
     uint256 rump;
 }
 
