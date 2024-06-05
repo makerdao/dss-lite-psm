@@ -200,7 +200,7 @@ contract DssLitePsm {
     }
 
     ///@dev Returns the min between `x` and `y`.
-    function _min(uint256 x, uint256 y) internal pure returns (uint256 z) {
+    function _min(uint256 x, uint256 y) external pure returns (uint256 z) {
         return x < y ? x : y;
     }
 
@@ -465,8 +465,8 @@ contract DssLitePsm {
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
         uint256 tArt = gem.balanceOf(pocket) * to18ConversionFactor + buf;
 
-        wad = _min(
-            _min(
+        wad = this._min(
+            this._min(
                 // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
                 _subcap(tArt, Art),
                 _subcap(line / RAY, Art)
@@ -484,7 +484,7 @@ contract DssLitePsm {
         require(rate == RAY, "DssLitePsm/rate-not-RAY");
         uint256 tArt = gem.balanceOf(pocket) * to18ConversionFactor + buf;
 
-        wad = _min(
+        wad = this._min(
             _max(
                 // To avoid two extra SLOADs it assumes urn.art == ilk.Art.
                 _subcap(Art, tArt),
@@ -507,7 +507,7 @@ contract DssLitePsm {
         (, uint256 art) = vat.urns(ilk, address(this));
         uint256 cash = dai.balanceOf(address(this));
 
-        wad = _min(cash, cash + gem.balanceOf(pocket) * to18ConversionFactor - art);
+        wad = this._min(cash, cash + gem.balanceOf(pocket) * to18ConversionFactor - art);
     }
 
     /*//////////////////////////////////

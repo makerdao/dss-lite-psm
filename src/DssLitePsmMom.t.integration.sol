@@ -17,8 +17,8 @@ pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
 import {DssInstance, MCD} from "dss-test/MCD.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "script/dependencies/phase-1/DssLitePsmDeploy.sol";
-import {DssLitePsmInitConfig, DssLitePsmInit} from "script/dependencies/phase-1/DssLitePsmInit.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "script/dependencies/DssLitePsmDeploy.sol";
+import {DssLitePsmInitConfig, DssLitePsmInit} from "script/dependencies/DssLitePsmInit.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 
@@ -95,14 +95,10 @@ contract DssLitePsmMomTest is DssTest {
             psmKey: PSM_KEY,
             psmMomKey: PSM_MOM_KEY,
             pocketKey: POCKET_KEY,
-            pocket: pocket,
             pip: pip,
             buf: 50_000_000 * WAD,
             tin: 0,
-            tout: 0,
-            maxLine: 1_000_000_000 * RAD,
-            gap: 50_000_000 * RAD,
-            ttl: 8 hours
+            tout: 0
         });
 
         vm.label(CHAINLOG, "Chainlog");

@@ -22,14 +22,10 @@ struct DssLitePsmInitConfig {
     bytes32 psmKey;
     bytes32 pocketKey;
     bytes32 psmMomKey;
-    address pocket;
-    address pip;
     uint256 buf;
     uint256 tin;
     uint256 tout;
-    uint256 maxLine;
-    uint256 gap;
-    uint256 ttl;
+    address pip;
 }
 
 interface DssLitePsmLike {
@@ -47,10 +43,6 @@ interface DssLitePsmLike {
 
 interface DssLitePsmMomLike {
     function setAuthority(address) external;
-}
-
-interface DssPsmLike {
-    function ilk() external view returns (bytes32);
 }
 
 interface PipLike {
@@ -87,6 +79,8 @@ interface IlkRegistryLike {
         string memory _name,
         string memory _symbol
     ) external;
+    function gem(bytes32 ilk) external view returns (address);
+    function join(bytes32 ilk) external view returns (address);
 }
 
 library DssLitePsmInit {
@@ -104,24 +98,20 @@ library DssLitePsmInit {
         require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
     }
 
+    function _min(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        z = x < y ? x : y;
+    }
+
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
         // Sanity checks
         require(cfg.psmKey != cfg.pocketKey, "DssLitePsmInit/dst-psm-same-key-pocket");
-
-        require(cfg.buf > 0, "DssLitePsmInit/invalid-buf");
-        require(cfg.gap > 0, "DssLitePsmInit/invalid-gap");
-
         require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
-        require(DssLitePsmLike(inst.litePsm).pocket() == cfg.pocket, "DssLitePsmInit/pocket-mismatch");
-
+        address pocket = DssLitePsmLike(inst.litePsm).pocket();
         bytes32 ilk = DssLitePsmLike(inst.litePsm).ilk();
         address gem = DssLitePsmLike(inst.litePsm).gem();
-
-        IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
-
-        // 0. Ensure `litePsm` can spend `gem` on behalf of `pocket`.
+        // Ensure `litePsm` can spend `gem` on behalf of `pocket`.
         require(
-            GemLike(gem).allowance(cfg.pocket, inst.litePsm) == type(uint256).max,
+            GemLike(gem).allowance(pocket, inst.litePsm) == type(uint256).max,
             "DssLitePsmInit/invalid-pocket-allowance"
         );
 
@@ -145,27 +135,20 @@ library DssLitePsmInit {
             dss.vat.grab(ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
         }
 
-        // 3. Update auto-line.
-        AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
-        autoLine.setIlk(ilk, cfg.maxLine, cfg.gap, cfg.ttl);
-        autoLine.exec(ilk);
-
         // 4. Set `litePsm` config params.
-        DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
         DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
         DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
+        DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
         DssLitePsmLike(inst.litePsm).file("vow", dss.chainlog.getAddress("MCD_VOW"));
 
-        // 7. Fill `litePsm` so there is liquidity available immediately.
-        DssLitePsmLike(inst.litePsm).fill();
-
-        // 8. Rely `mom` on `litePsm`
+        // 5. Rely `mom` on `litePsm`
         DssLitePsmLike(inst.litePsm).rely(inst.mom);
 
-        // 9. Set the chief as authority for `mom`.
+        // 6. Set the chief as authority for `mom`.
         DssLitePsmMomLike(inst.mom).setAuthority(dss.chainlog.getAddress("MCD_ADM"));
 
-        // 10. Add `litePsm` to `IlkRegistry`
+        // 7. Add `litePsm` to `IlkRegistry`
+        IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         reg.put(
             ilk,
             address(0), // No `gemJoin` for `litePsm`
@@ -178,9 +161,9 @@ library DssLitePsmInit {
             GemLike(gem).symbol()
         );
 
-        // 11. Add `litePsm`, `mom` and `pocket` to the chainlog.
+        // 8. Add `litePsm`, `mom` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.psmKey, inst.litePsm);
         dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
-        dss.chainlog.setAddress(cfg.pocketKey, cfg.pocket);
+        dss.chainlog.setAddress(cfg.pocketKey, pocket);
     }
 }

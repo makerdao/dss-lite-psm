@@ -20,7 +20,7 @@ import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLitePsmMigration.sol";
 
-struct DssLitePsmMigrationConfigPhase2 {
+struct DssLitePsmMigrationConfigPhase1 {
     bytes32 psmMomKey;
     address dstPip;
     bytes32 dstPsmKey;
@@ -33,8 +33,6 @@ struct DssLitePsmMigrationConfigPhase2 {
     uint256 dstTtl;
     uint256 dstWant;
     bytes32 srcPsmKey;
-    uint256 srcTin;
-    uint256 srcTout;
     uint256 srcMaxLine;
     uint256 srcGap;
     uint256 srcTtl;
@@ -54,14 +52,26 @@ interface AutoLineLike {
     function setIlk(bytes32, uint256, uint256, uint256) external;
 }
 
-library DssLitePsmMigrationPhase2 {
+library DssLitePsmMigrationPhase1 {
     uint256 internal constant RAY = 10 ** 27;
 
-    function migrate(
+    function initAndMigrate(
         DssInstance memory dss,
-        DssLitePsmMigrationConfigPhase2 memory cfg
+        DssLitePsmInstance memory inst,
+        DssLitePsmMigrationConfigPhase1 memory cfg
     ) internal {
-        // 1. Migrate funds to the new PSM.
+        // 1. Initialize the new PSM,
+        DssLitePsmInit.init(dss, inst, DssLitePsmInitConfig({
+            psmMomKey: cfg.psmMomKey,
+            psmKey: cfg.dstPsmKey,
+            pocketKey: cfg.dstPocketKey,
+            buf: cfg.dstBuf,
+            tin: cfg.dstTin,
+            tout: cfg.dstTout,
+            pip: cfg.dstPip
+        }));
+
+        // 2. Migrate some funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(dss, MigrationConfig({
             srcPsmKey: cfg.srcPsmKey,
             dstPsmKey: cfg.dstPsmKey,
@@ -69,28 +79,25 @@ library DssLitePsmMigrationPhase2 {
             dstBuf: cfg.dstBuf
         }));
 
-        // 2. Update auto-line.
+        // 3. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 2.1. Update auto-line for `src.psm`
+        // 3.1. Update auto-line for `src.psm`
         autoLine.setIlk(res.src.ilk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
         autoLine.exec(res.src.ilk);
 
-        // 2.2. Update auto-line for `dst.psm`
+        // 3.2. Update auto-line for `dst.psm`
         // Ensure we will be able to call `fill` below.
         require(cfg.dstMaxLine > res.dst.art * RAY, "DssLitePsmMigration/max-line-too-low");
         autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
         autoLine.exec(res.dst.ilk);
 
-        // 3. Set the final params for both PSMs.
-        DssPsmLike(res.src.psm).file("tin", cfg.srcTin);
-        DssPsmLike(res.src.psm).file("tout", cfg.srcTout);
-
+        // 4. Set the final params for `dst.psm`.
         DssLitePsmLike(res.dst.psm).file("tin", cfg.dstTin);
         DssLitePsmLike(res.dst.psm).file("tout", cfg.dstTout);
         DssLitePsmLike(res.dst.psm).file("buf", cfg.dstBuf);
 
-        // 4. Fill `dst.psm` so there is liquidity available immediately.
+        // 5. Fill `dst.psm` so there is liquidity available immediately.
         // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
         DssLitePsmLike(res.dst.psm).fill();
     }

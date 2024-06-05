@@ -123,14 +123,10 @@ contract DssLitePsmInitTest is DssTest {
             psmKey: PSM_KEY,
             psmMomKey: PSM_MOM_KEY,
             pocketKey: POCKET_KEY,
-            pocket: pocket,
             pip: pip,
-            buf: 50_000_000 * WAD,
             tin: 0.01 ether,
             tout: 0.01 ether,
-            maxLine: 1_000_000_000 * RAD,
-            gap: 100_000_000 * RAD,
-            ttl: 8 hours
+            buf: 10_000_000 * WAD
         });
 
         vm.label(CHAINLOG, "Chainlog");
@@ -147,7 +143,7 @@ contract DssLitePsmInitTest is DssTest {
         vm.label(address(autoLine), "AutoLine");
     }
 
-    function testLitePsmOnboarding() public {
+    function testLitePsmInit() public {
         {
             (uint256 pilkArt,,, uint256 pline,) = dss.vat.ilks(ILK);
             (uint256 pink, uint256 part) = dss.vat.urns(ILK, inst.litePsm);
@@ -155,12 +151,6 @@ contract DssLitePsmInitTest is DssTest {
             assertEq(pline, 0, "before: line is not zero");
             assertEq(part, 0, "before: art is not zero");
             assertEq(pink, 0, "before: ink is not zero");
-        }
-
-        // `litePsm` not present in AutoLine
-        {
-            (uint256 pmaxLine,,,,) = autoLine.ilks(ILK);
-            assertEq(pmaxLine, 0, "before: ilk already in AutoLine");
         }
 
         // `litePsm`, `mom` and `pocket` are not present in Chainlog
@@ -189,23 +179,9 @@ contract DssLitePsmInitTest is DssTest {
 
         // New PSM is properly setup
         {
-            (uint256 ilkArt,,, uint256 line,) = dss.vat.ilks(ILK);
-            (uint256 ink, uint256 art) = dss.vat.urns(ILK, inst.litePsm);
-            assertEq(ilkArt, cfg.buf, "after: invalid ilk Art");
-            assertEq(line, cfg.gap, "after: invalid line");
-            assertEq(art, cfg.buf, "after: invalid art");
+            (uint256 ink, ) = dss.vat.urns(ILK, inst.litePsm);
             // Unlimited virtual ink is set properly
             assertEq(ink, type(uint256).max / RAY, "after: invalid ink");
-        }
-
-        // New PSM is present in AutoLiine
-        {
-            (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(ILK);
-            assertEq(maxLine, cfg.maxLine, "after: AutoLine invalid maxLine");
-            assertEq(gap, cfg.gap, "after: AutoLine invalid gap");
-            assertEq(ttl, uint48(cfg.ttl), "after: AutoLine invalid ttl");
-            assertEq(last, block.number, "after: AutoLine invalid last");
-            assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
 
         // `mom` was properly set up

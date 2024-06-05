@@ -16,12 +16,20 @@
 pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
-import {DssLitePsm} from "src/DssLitePsm.sol";
-import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../phase-1/DssLitePsmDeploy.sol";
-import {DssLitePsmInstance} from "../phase-1/DssLitePsmInstance.sol";
-import {DssLitePsmInit, DssLitePsmInitConfig} from "../phase-1/DssLitePsmInit.sol";
-import {DssLitePsmMigrationPhase3, DssLitePsmMigrationPhase3Config} from "../phase-3/DssLitePsmMigrationPhase3.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams} from "./DssLitePsmDeploy.sol";
+import {DssLitePsmInstance} from "./DssLitePsmInstance.sol";
+import {DssLitePsmInit, DssLitePsmInitConfig} from "./DssLitePsmInit.sol";
+import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "./DssLitePsmMigration.sol";
+
+interface DssPsmLike {
+    function tin() external view returns (uint256);
+    function tout() external view returns (uint256);
+    function vow() external view returns (address);
+}
+
+interface DssLitePsmLike is DssPsmLike {
+    function buf() external view returns (uint256);
+}
 
 interface ProxyLike {
     function exec(address usr, bytes memory fax) external returns (bytes memory out);
@@ -29,6 +37,7 @@ interface ProxyLike {
 
 interface AutoLineLike {
     function ilks(bytes32) external view returns (uint256 line, uint256 gap, uint48 ttl, uint48 last, uint48 lastInc);
+    function exec(bytes32) external;
 }
 
 interface IlkRegistryLike {
@@ -58,12 +67,14 @@ contract InitCaller {
 }
 
 contract MigrationCaller {
-    function migrate(DssInstance memory dss, DssLitePsmMigrationPhase3Config memory cfg) external {
-        DssLitePsmMigrationPhase3.migrate(dss, cfg);
+    function migrate(DssInstance memory dss, MigrationConfig memory cfg)
+        external
+    {
+        DssLitePsmMigration.migrate(dss, cfg);
     }
 }
 
-contract DssLitePsmMigrationPhase3Test is DssTest {
+contract DssLitePsmMigrationTest is DssTest {
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant GEM_KEY = "USDC";
@@ -73,21 +84,19 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
     bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
-    uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
 
     DssInstance dss;
     address pause;
     address vow;
-    address srcPsm;
+    DssPsmLike srcPsm;
     address chief;
     IlkRegistryLike reg;
     ProxyLike pauseProxy;
     AutoLineLike autoLine;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig initCfg;
-    DssLitePsmMigrationPhase3Config migCfg;
-    DssLitePsm litePsm;
-    DssLitePsmMom mom;
+    MigrationConfig migCfg;
+    DssLitePsmLike litePsm;
     GemLike gem;
     address pocket;
     address pip;
@@ -105,7 +114,7 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
-        srcPsm = dss.chainlog.getAddress(SRC_PSM_KEY);
+        srcPsm = DssPsmLike(dss.chainlog.getAddress(SRC_PSM_KEY));
         gem = GemLike(dss.chainlog.getAddress(GEM_KEY));
         pocket = makeAddr("Pocket");
         pip = dss.chainlog.getAddress("PIP_USDC");
@@ -124,8 +133,7 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
             })
         );
 
-        litePsm = DssLitePsm(inst.litePsm);
-        mom = DssLitePsmMom(inst.mom);
+        litePsm = DssLitePsmLike(inst.litePsm);
 
         vm.prank(pocket);
         gem.approve(inst.litePsm, type(uint256).max);
@@ -134,33 +142,28 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
             psmKey: DST_PSM_KEY,
             psmMomKey: PSM_MOM_KEY,
             pocketKey: DST_POCKET_KEY,
-            pocket: pocket,
             pip: pip,
-            buf: 50_000_000 * WAD,
             tin: 0.01 ether,
             tout: 0.01 ether,
-            maxLine: 50_000_000 * RAD,
-            gap: 10_000_000 * RAD,
-            ttl: 8 hours
+            buf: 50_000_000 * WAD
         });
 
-        migCfg = DssLitePsmMigrationPhase3Config({
+        migCfg = MigrationConfig({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
-            buf: 50_000_000 * WAD,
-            tin: 0.025 ether,
-            tout: 0.025 ether,
-            maxLine: 10_000_000_000 * RAD,
-            gap: 200_000_000 * RAD,
-            ttl: 8 hours
+            dstWant: 10_000_000 * WAD,
+            dstBuf: initCfg.buf
         });
+
+        // Simulate a spell casting for initialization
+        vm.prank(pause);
+        pauseProxy.exec(address(initCaller), abi.encodeCall(initCaller.init, (dss, inst, initCfg)));
 
         vm.label(CHAINLOG, "Chainlog");
         vm.label(pause, "Pause");
         vm.label(vow, "Vow");
-        vm.label(srcPsm, "PsmUsdc");
+        vm.label(address(srcPsm), "PsmUsdc");
         vm.label(inst.litePsm, "LitePsm");
-        vm.label(inst.mom, "LitePsmMom");
         vm.label(address(pauseProxy), "PauseProxy");
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.jug), "Jug");
@@ -171,23 +174,17 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
     }
 
     function testLitePsmMigration() public {
-        // Simulate a spell casting for initialization
-        vm.prank(pause);
-        pauseProxy.exec(address(initCaller), abi.encodeCall(initCaller.init, (dss, inst, initCfg)));
-
-        uint256 pglobalLine = dss.vat.Line();
         (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
-        (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, srcPsm);
+        (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
+        uint256 psrcTin = srcPsm.tin();
+        uint256 psrcTout = srcPsm.tout();
+        uint256 pdstTin = litePsm.tin();
+        uint256 pdstTout = litePsm.tout();
+        uint256 pdstBuf = litePsm.buf();
         assertGt(psrcIlkArt, 0, "before: src ilk Art is zero");
         assertGt(psrcLine, 0, "before: src line is zero");
         assertGt(psrcArt, 0, "before: src art is zero");
         assertGt(psrcInk, 0, "before: src ink is zero");
-
-        // Source PSM is present in AutoLiine
-        {
-            (uint256 psrcMaxLine,,,,) = autoLine.ilks(SRC_ILK);
-            assertGt(psrcMaxLine, 0, "before: src ilk not in AutoLine");
-        }
 
         // Simulate a spell casting for migration
         vm.prank(pause);
@@ -195,42 +192,20 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
 
         // Sanity checks
         {
-            assertEq(litePsm.tin(), migCfg.tin, "after: invalid tin");
-            assertEq(litePsm.tout(), migCfg.tout, "after: invalid tout");
-            assertEq(litePsm.buf(), migCfg.buf, "after: invalid buf");
-            assertEq(litePsm.vow(), vow, "after: invalid vow");
+            assertEq(srcPsm.tin(), psrcTin, "after: invalid src tin update");
+            assertEq(srcPsm.tout(), psrcTout, "after: invalid src tout update");
+            assertEq(srcPsm.vow(), vow, "after: invalid src vow update");
+
+            assertEq(litePsm.tin(), pdstTin, "after: invalid dst tin update");
+            assertEq(litePsm.tout(), pdstTout, "after: invalid dst tout update");
+            assertEq(litePsm.buf(), pdstBuf, "after: invalid dst buf update");
+            assertEq(litePsm.vow(), vow, "after: invalid dst vow update");
         }
 
-        // Global Line should be adjusted by increasing the new PSM line, taking into account the old values
+        // Old PSM ink is decreased by the correct amount
         {
-            uint256 globalLine = dss.vat.Line();
-            assertEq(globalLine, pglobalLine + (migCfg.gap - initCfg.gap), "after: invalid Line change");
-        }
-
-        // All collateral and debt has been migrated from the source PSM
-        {
-            (uint256 srcIlkArt,,, uint256 srcLine,) = dss.vat.ilks(SRC_ILK);
-            (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, srcPsm);
-            assertEq(srcIlkArt, 0, "after: src ilk Art is not zero");
-            assertEq(srcLine, 0, "after: src line is not zero");
-            assertEq(srcArt, 0, "after: src art is not zero");
-            assertEq(srcInk, 0, "after: src ink is not zero");
-        }
-
-        // Source PSM has been removed from AutoLine
-        {
-            (uint256 srcMaxLine,,,,) = autoLine.ilks(SRC_ILK);
-            assertEq(srcMaxLine, 0, "after: src ilk not removed from AutoLine");
-        }
-
-        // New PSM is configured in AutoLiine
-        {
-            (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
-            assertEq(maxLine, migCfg.maxLine, "after: AutoLine invalid maxLine");
-            assertEq(gap, migCfg.gap, "after: AutoLine invalid gap");
-            assertEq(ttl, uint48(migCfg.ttl), "after: AutoLine invalid ttl");
-            assertEq(last, block.number, "after: AutoLine invalid last");
-            assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
+            (uint256 srcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
+            assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by dstWant");
         }
     }
 }
