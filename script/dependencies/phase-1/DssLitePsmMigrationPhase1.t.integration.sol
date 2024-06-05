@@ -65,9 +65,11 @@ interface GemLike {
 }
 
 contract MigrationCaller {
-    function initAndMigrate(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmMigrationConfigPhase1 memory cfg)
-        external
-    {
+    function initAndMigrate(
+        DssInstance memory dss,
+        DssLitePsmInstance memory inst,
+        DssLitePsmMigrationConfigPhase1 memory cfg
+    ) external {
         DssLitePsmMigrationPhase1.initAndMigrate(dss, inst, cfg);
     }
 }

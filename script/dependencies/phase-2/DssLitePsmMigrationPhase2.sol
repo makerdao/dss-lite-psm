@@ -57,17 +57,17 @@ interface AutoLineLike {
 library DssLitePsmMigrationPhase2 {
     uint256 internal constant RAY = 10 ** 27;
 
-    function migrate(
-        DssInstance memory dss,
-        DssLitePsmMigrationConfigPhase2 memory cfg
-    ) internal {
+    function migrate(DssInstance memory dss, DssLitePsmMigrationConfigPhase2 memory cfg) internal {
         // 1. Migrate funds to the new PSM.
-        MigrationResult memory res = DssLitePsmMigration.migrate(dss, MigrationConfig({
-            srcPsmKey: cfg.srcPsmKey,
-            dstPsmKey: cfg.dstPsmKey,
-            dstWant: cfg.dstWant,
-            dstBuf: cfg.dstBuf
-        }));
+        MigrationResult memory res = DssLitePsmMigration.migrate(
+            dss,
+            MigrationConfig({
+                srcPsmKey: cfg.srcPsmKey,
+                dstPsmKey: cfg.dstPsmKey,
+                dstWant: cfg.dstWant,
+                dstBuf: cfg.dstBuf
+            })
+        );
 
         // 2. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));

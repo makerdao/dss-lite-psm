@@ -52,7 +52,6 @@ struct MigrationResult {
     DstPsm dst;
 }
 
-
 interface DssLitePsmLike {
     function buf() external view returns (uint256);
     function daiJoin() external view returns (address);

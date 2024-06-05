@@ -179,7 +179,7 @@ contract DssLitePsmInitTest is DssTest {
 
         // New PSM is properly setup
         {
-            (uint256 ink, ) = dss.vat.urns(ILK, inst.litePsm);
+            (uint256 ink,) = dss.vat.urns(ILK, inst.litePsm);
             // Unlimited virtual ink is set properly
             assertEq(ink, type(uint256).max / RAY, "after: invalid ink");
         }

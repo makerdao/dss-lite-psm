@@ -67,9 +67,7 @@ contract InitCaller {
 }
 
 contract MigrationCaller {
-    function migrate(DssInstance memory dss, MigrationConfig memory cfg)
-        external
-    {
+    function migrate(DssInstance memory dss, MigrationConfig memory cfg) external {
         DssLitePsmMigration.migrate(dss, cfg);
     }
 }

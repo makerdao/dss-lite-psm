@@ -61,23 +61,30 @@ library DssLitePsmMigrationPhase1 {
         DssLitePsmMigrationConfigPhase1 memory cfg
     ) internal {
         // 1. Initialize the new PSM,
-        DssLitePsmInit.init(dss, inst, DssLitePsmInitConfig({
-            psmMomKey: cfg.psmMomKey,
-            psmKey: cfg.dstPsmKey,
-            pocketKey: cfg.dstPocketKey,
-            buf: cfg.dstBuf,
-            tin: cfg.dstTin,
-            tout: cfg.dstTout,
-            pip: cfg.dstPip
-        }));
+        DssLitePsmInit.init(
+            dss,
+            inst,
+            DssLitePsmInitConfig({
+                psmMomKey: cfg.psmMomKey,
+                psmKey: cfg.dstPsmKey,
+                pocketKey: cfg.dstPocketKey,
+                buf: cfg.dstBuf,
+                tin: cfg.dstTin,
+                tout: cfg.dstTout,
+                pip: cfg.dstPip
+            })
+        );
 
         // 2. Migrate some funds to the new PSM.
-        MigrationResult memory res = DssLitePsmMigration.migrate(dss, MigrationConfig({
-            srcPsmKey: cfg.srcPsmKey,
-            dstPsmKey: cfg.dstPsmKey,
-            dstWant: cfg.dstWant,
-            dstBuf: cfg.dstBuf
-        }));
+        MigrationResult memory res = DssLitePsmMigration.migrate(
+            dss,
+            MigrationConfig({
+                srcPsmKey: cfg.srcPsmKey,
+                dstPsmKey: cfg.dstPsmKey,
+                dstWant: cfg.dstWant,
+                dstBuf: cfg.dstBuf
+            })
+        );
 
         // 3. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));

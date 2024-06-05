@@ -111,8 +111,7 @@ library DssLitePsmInit {
         address gem = DssLitePsmLike(inst.litePsm).gem();
         // Ensure `litePsm` can spend `gem` on behalf of `pocket`.
         require(
-            GemLike(gem).allowance(pocket, inst.litePsm) == type(uint256).max,
-            "DssLitePsmInit/invalid-pocket-allowance"
+            GemLike(gem).allowance(pocket, inst.litePsm) == type(uint256).max, "DssLitePsmInit/invalid-pocket-allowance"
         );
 
         // 1. Initialize the new ilk
