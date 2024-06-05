@@ -162,10 +162,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         });
 
         mig2Cfg = DssLitePsmMigrationConfigPhase2({
-            psmMomKey: PSM_MOM_KEY,
-            dstPip: pip,
             dstPsmKey: DST_PSM_KEY,
-            dstPocketKey: DST_POCKET_KEY,
             dstTin: 0,
             dstTout: 0,
             dstBuf: 300_000_000 * WAD,

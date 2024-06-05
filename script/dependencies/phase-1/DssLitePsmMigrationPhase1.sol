@@ -45,6 +45,7 @@ interface DssPsmLike {
 interface DssLitePsmLike {
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
+    function rush() external view returns (uint256);
 }
 
 interface AutoLineLike {
@@ -95,7 +96,7 @@ library DssLitePsmMigrationPhase1 {
 
         // 3.2. Update auto-line for `dst.psm`
         // Ensure we will be able to call `fill` below.
-        require(cfg.dstMaxLine > res.dst.art * RAY, "DssLitePsmMigration/max-line-too-low");
+        require(cfg.dstMaxLine > res.dst.art * RAY, "DssLitePsmMigrationPhase1/max-line-too-low");
         autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
         autoLine.exec(res.dst.ilk);
 
@@ -106,6 +107,8 @@ library DssLitePsmMigrationPhase1 {
 
         // 5. Fill `dst.psm` so there is liquidity available immediately.
         // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
-        DssLitePsmLike(res.dst.psm).fill();
+        if (DssLitePsmLike(res.dst.psm).rush() > 0) {
+            DssLitePsmLike(res.dst.psm).fill();
+        }
     }
 }

@@ -62,6 +62,7 @@ interface DssLitePsmLike {
     function ilk() external view returns (bytes32);
     function pocket() external view returns (address);
     function rely(address) external;
+    function rush() external view returns (uint256);
     function sellGem(address, uint256) external returns (uint256);
     function tin() external view returns (uint256);
     function tout() external view returns (uint256);
@@ -180,7 +181,6 @@ library DssLitePsmMigration {
 
         // Sanity checks
         {
-            require(src.ink > 0, "DssLitePsmMigration/src-psm-not-initialized");
             require(src.ink >= src.art, "DssLitePsmMigration/src-ink-lower-than-art");
             (, uint256 srcRate,,,) = dss.vat.ilks(src.ilk);
             (, uint256 dstRate,,,) = dss.vat.ilks(dst.ilk);
@@ -192,12 +192,13 @@ library DssLitePsmMigration {
         // Ensure it does not try to migrate more than the existing collateral.
         uint256 mink = _min(src.ink, cfg.dstWant);
         // Ensure it does not try to erase more than the existing debt.
-        uint256 mart = _min(src.art, mink);
+        uint256 mart = _min(src.art, cfg.dstWant);
         // Store current params to reset them at the end.
         uint256 currentGlobalLine = dss.vat.Line();
 
         // 1. Set interim params to accommodate the migration.
-        uint256 lineInc = (mart + cfg.dstBuf) * RAY;
+        // Line and ilk.line will be restored later, so we can overshoot by 10% to avoid rounding errors.
+        uint256 lineInc = mink * RAY * 11 / 10;
         dss.vat.file("Line", currentGlobalLine + lineInc);
         dss.vat.file(dst.ilk, "line", dst.line + lineInc);
 
@@ -205,7 +206,9 @@ library DssLitePsmMigration {
         DssLitePsmLike(dst.psm).file("buf", mink);
         DssLitePsmLike(dst.psm).file("tin", 0);
         DssLitePsmLike(dst.psm).file("tout", 0);
-        DssLitePsmLike(dst.psm).fill();
+        if (DssLitePsmLike(dst.psm).rush() > 0) {
+            DssLitePsmLike(dst.psm).fill();
+        }
 
         // 3. Move gems from `src.psm` to `dst.psm`.
 
