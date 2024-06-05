@@ -40,7 +40,6 @@ struct DstPsm {
     address psm;
     address gem;
     uint256 line; // [rad]
-    uint256 art; // [wad]
     uint256 buf; // [wad]
     uint256 tin; // [wad] 10**18 == 100%
     uint256 tout; // [wad] 10**18 == 100%
@@ -152,7 +151,6 @@ library DssLitePsmMigration {
         dst.psm = dss.chainlog.getAddress(dstPsmKey);
         dst.ilk = DssLitePsmLike(dst.psm).ilk();
         dst.gem = reg.gem(dst.ilk);
-        (, dst.art) = dss.vat.urns(dst.ilk, dst.psm);
         dst.buf = DssLitePsmLike(dst.psm).buf();
         dst.tin = DssLitePsmLike(dst.psm).tin();
         dst.tout = DssLitePsmLike(dst.psm).tout();

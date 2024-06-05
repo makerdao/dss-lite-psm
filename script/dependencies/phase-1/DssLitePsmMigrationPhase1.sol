@@ -95,8 +95,6 @@ library DssLitePsmMigrationPhase1 {
         autoLine.exec(res.src.ilk);
 
         // 3.2. Update auto-line for `dst.psm`
-        // Ensure we will be able to call `fill` below.
-        require(cfg.dstMaxLine > res.dst.art * RAY, "DssLitePsmMigrationPhase1/max-line-too-low");
         autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
         autoLine.exec(res.dst.ilk);
 
