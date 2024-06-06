@@ -195,8 +195,9 @@ library DssLitePsmMigration {
         uint256 currentGlobalLine = dss.vat.Line();
 
         // 1. Set interim params to accommodate the migration.
-        // Line and ilk.line will be restored later, so we can overshoot by 10% to avoid rounding errors.
-        uint256 lineInc = mink * RAY * 11 / 10;
+        // Overshoot by 2x to avoid being constrained by the debt ceiling.
+        // Line and ilk.line will be restored later.
+        uint256 lineInc = mink * RAY * 2;
         dss.vat.file("Line", currentGlobalLine + lineInc);
         dss.vat.file(dst.ilk, "line", dst.line + lineInc);
 
