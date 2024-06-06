@@ -40,30 +40,10 @@ interface ProxyLike {
 
 interface AutoLineLike {
     function ilks(bytes32) external view returns (uint256 line, uint256 gap, uint48 ttl, uint48 last, uint48 lastInc);
-    function exec(bytes32) external;
-}
-
-interface IlkRegistryLike {
-    function info(bytes32 ilk)
-        external
-        view
-        returns (
-            string memory name,
-            string memory symbol,
-            uint256 class,
-            uint256 dec,
-            address gem,
-            address pip,
-            address join,
-            address xlip
-        );
 }
 
 interface GemLike {
     function approve(address, uint256) external;
-    function name() external view returns (string memory);
-    function symbol() external view returns (string memory);
-    function decimals() external view returns (uint8);
 }
 
 contract MigrationCaller {
@@ -90,14 +70,12 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
-    uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
 
     DssInstance dss;
     address pause;
     address vow;
     DssPsmLike srcPsm;
     address chief;
-    IlkRegistryLike reg;
     ProxyLike pauseProxy;
     AutoLineLike autoLine;
     DssLitePsmInstance inst;
@@ -116,7 +94,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
 
         pause = dss.chainlog.getAddress("MCD_PAUSE");
         vow = dss.chainlog.getAddress("MCD_VOW");
-        reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
