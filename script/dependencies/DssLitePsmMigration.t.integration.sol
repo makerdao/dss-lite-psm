@@ -141,16 +141,16 @@ contract DssLitePsmMigrationTest is DssTest {
             psmMomKey: PSM_MOM_KEY,
             pocketKey: DST_POCKET_KEY,
             pip: pip,
-            tin: 0.01 ether,
-            tout: 0.01 ether,
-            buf: 50_000_000 * WAD
+            ilk: DST_ILK,
+            gem: address(gem),
+            pocket: pocket
         });
 
         migCfg = MigrationConfig({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
-            dstWant: 10_000_000 * WAD,
-            dstBuf: initCfg.buf
+            move: 10_000_000 * WAD,
+            leave: 0
         });
 
         // Simulate a spell casting for initialization
@@ -203,7 +203,7 @@ contract DssLitePsmMigrationTest is DssTest {
         // Old PSM ink is decreased by the correct amount
         {
             (uint256 srcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
-            assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by dstWant");
+            assertEq(srcInk, psrcInk - migCfg.move, "after: src ink is not decreased by move");
         }
     }
 }

@@ -16,8 +16,6 @@
 pragma solidity ^0.8.16;
 
 import {DssInstance} from "dss-test/MCD.sol";
-import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
-import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLitePsmMigration.sol";
 
 struct DssLitePsmMigrationConfigPhase3 {
@@ -49,43 +47,47 @@ interface AutoLineLike {
 }
 
 library DssLitePsmMigrationPhase3 {
-    uint256 internal constant RAY = 10 ** 27;
+    uint256 internal constant WAD = 10 ** 18;
+    uint256 internal constant RAD = 10 ** 45;
 
-    function migrate(DssInstance memory dss, DssLitePsmMigrationConfigPhase3 memory cfg) internal {
+    function migrate(DssInstance memory dss) internal {
         // 1. Get the remaining amount of collateral from src PSM.
-        address srcPsm = dss.chainlog.getAddress(cfg.srcPsmKey);
+        address srcPsm = dss.chainlog.getAddress("MCD_PSM_USDC_A");
         bytes32 srcIlk = DssPsmLike(srcPsm).ilk();
         (uint256 srcInk,) = dss.vat.urns(srcIlk, srcPsm);
 
         // 2. Migrate all funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(
             dss,
-            MigrationConfig({srcPsmKey: cfg.srcPsmKey, dstPsmKey: cfg.dstPsmKey, dstWant: srcInk, dstBuf: cfg.dstBuf})
+            MigrationConfig({
+                srcPsmKey: "MCD_PSM_USDC_A",
+                dstPsmKey: "MCD_LITE_PSM_USDC_A",
+                move: srcInk,
+                leave: 0
+            })
         );
 
         // 3. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 3.1. Remove `src.psm` from AutoLine
-        autoLine.remIlk(res.src.ilk);
-        dss.vat.file(res.src.ilk, "line", 0);
+        // 3.1. Remove `srcPsm` from AutoLine
+        autoLine.remIlk(res.srcIlk);
+        dss.vat.file(res.srcIlk, "line", 0);
 
-        // 3.2. Update auto-line for `dst.psm`
-        autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
-        autoLine.exec(res.dst.ilk);
+        // 3.2. Update auto-line for `dstPsm`
+        autoLine.setIlk(res.dstIlk, 10_000_000_000 * RAD, 400_000_000 * RAD, 12 hours);
+        autoLine.exec(res.dstIlk);
 
         // 4. Set the final params for both PSMs.
-        DssPsmLike(res.src.psm).file("tin", 0);
-        DssPsmLike(res.src.psm).file("tout", 0);
+        DssPsmLike(res.srcPsm).file("tin", 0);
+        DssPsmLike(res.srcPsm).file("tout", 0);
 
-        DssLitePsmLike(res.dst.psm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dst.psm).file("tout", cfg.dstTout);
-        DssLitePsmLike(res.dst.psm).file("buf", cfg.dstBuf);
+        DssLitePsmLike(res.dstPsm).file("buf", 400_000_000 * WAD);
 
-        // 5. Fill `dst.psm` so there is liquidity available immediately.
-        // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
-        if (DssLitePsmLike(res.dst.psm).rush() > 0) {
-            DssLitePsmLike(res.dst.psm).fill();
+        // 5. Fill `dstPsm` so there is liquidity available immediately.
+        // Notice: `dstPsm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
+        if (DssLitePsmLike(res.dstPsm).rush() > 0) {
+            DssLitePsmLike(res.dstPsm).fill();
         }
     }
 }

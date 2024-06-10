@@ -124,9 +124,9 @@ contract DssLitePsmInitTest is DssTest {
             psmMomKey: PSM_MOM_KEY,
             pocketKey: POCKET_KEY,
             pip: pip,
-            tin: 0.01 ether,
-            tout: 0.01 ether,
-            buf: 10_000_000 * WAD
+            ilk: ILK,
+            gem: address(gem),
+            pocket: pocket
         });
 
         vm.label(CHAINLOG, "Chainlog");
@@ -171,9 +171,6 @@ contract DssLitePsmInitTest is DssTest {
 
         // Sanity checks
         {
-            assertEq(litePsm.tin(), cfg.tin, "after: invalid tin");
-            assertEq(litePsm.tout(), cfg.tout, "after: invalid tout");
-            assertEq(litePsm.buf(), cfg.buf, "after: invalid buf");
             assertEq(litePsm.vow(), vow, "after: invalid vow");
         }
 

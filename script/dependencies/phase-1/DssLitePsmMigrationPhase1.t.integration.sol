@@ -20,7 +20,7 @@ import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../DssLitePsmDeploy.sol"
 import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration} from "../DssLitePsmMigration.sol";
-import {DssLitePsmMigrationPhase1, DssLitePsmMigrationConfigPhase1} from "./DssLitePsmMigrationPhase1.sol";
+import {DssLitePsmMigrationPhase1} from "./DssLitePsmMigrationPhase1.sol";
 
 interface DssPsmLike {
     function tin() external view returns (uint256);
@@ -68,9 +68,9 @@ contract MigrationCaller {
     function initAndMigrate(
         DssInstance memory dss,
         DssLitePsmInstance memory inst,
-        DssLitePsmMigrationConfigPhase1 memory cfg
+        address pocket
     ) external {
-        DssLitePsmMigrationPhase1.initAndMigrate(dss, inst, cfg);
+        DssLitePsmMigrationPhase1.initAndMigrate(dss, inst, pocket);
     }
 }
 
@@ -78,10 +78,7 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant GEM_KEY = "USDC";
-    bytes32 constant PSM_MOM_KEY = "MCD_LITE_PSM_MOM";
     bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
-    bytes32 constant DST_PSM_KEY = "MCD_LITE_PSM_USDC_A";
-    bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
     uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
@@ -100,7 +97,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
     address pocket;
     address pip;
     MigrationCaller migCaller;
-    DssLitePsmMigrationConfigPhase1 migCfg;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
@@ -136,24 +132,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         vm.prank(pocket);
         gem.approve(inst.litePsm, type(uint256).max);
 
-        migCfg = DssLitePsmMigrationConfigPhase1({
-            psmMomKey: PSM_MOM_KEY,
-            dstPip: pip,
-            dstPsmKey: DST_PSM_KEY,
-            dstPocketKey: DST_POCKET_KEY,
-            dstTin: 0.025 ether,
-            dstTout: 0.025 ether,
-            dstBuf: 50_000_000 * WAD,
-            dstGap: 50_000_000 * RAD,
-            dstMaxLine: 50_000_000 * RAD,
-            dstTtl: 12 hours,
-            dstWant: 10_000_000 * WAD,
-            srcPsmKey: SRC_PSM_KEY,
-            srcMaxLine: 2_500_000_000 * RAD,
-            srcGap: 100_000_000 * RAD,
-            srcTtl: 12 hours
-        });
-
         vm.label(CHAINLOG, "Chainlog");
         vm.label(pause, "Pause");
         vm.label(vow, "Vow");
@@ -177,10 +155,11 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         assertGt(psrcLine, 0, "before: src line is zero");
         assertGt(psrcArt, 0, "before: src art is zero");
         assertGt(psrcInk, 0, "before: src ink is zero");
+        (uint256 psrcMaxLine, uint256 pSrcGap, uint48 pSrcTtl,,) = autoLine.ilks(SRC_ILK);
 
         // Simulate a spell casting for migration
         vm.prank(pause);
-        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate, (dss, inst, migCfg)));
+        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate, (dss, inst, pocket)));
 
         // Sanity checks
         {
@@ -188,25 +167,25 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(srcPsm.tout(), psrcTout, "after: invalid src tout update");
             assertEq(srcPsm.vow(), vow, "after: invalid src vow update");
 
-            assertEq(litePsm.tin(), migCfg.dstTin, "after: invalid dst tin");
-            assertEq(litePsm.tout(), migCfg.dstTout, "after: invalid dst tout");
-            assertEq(litePsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
+            assertEq(litePsm.tin(), 0, "after: invalid dst tin");
+            assertEq(litePsm.tout(), 0, "after: invalid dst tout");
+            assertEq(litePsm.buf(), 20_000_000 * WAD, "after: invalid dst buf");
             assertEq(litePsm.vow(), vow, "after: invalid dst vow update");
         }
 
         // Old PSM ink is decreased by the correct amount
         {
             (uint256 srcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
-            assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by want");
+            assertEq(srcInk, psrcInk - 10_000_000 * WAD, "after: src ink is not decreased by want");
         }
 
         // Old PSM is properly configured on AutoLine
         {
-            (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last,) = autoLine.ilks(SRC_ILK);
-            assertEq(maxLine, migCfg.srcMaxLine, "after: AutoLine invalid maxLine");
-            assertEq(gap, migCfg.srcGap, "after: AutoLine invalid gap");
-            assertEq(ttl, uint48(migCfg.srcTtl), "after: AutoLine invalid ttl");
-            assertEq(last, block.number, "after: AutoLine invalid last");
+            (uint256 srcMaxLine, uint256 srcGap, uint48 srcTtl, uint256 srcLast,) = autoLine.ilks(SRC_ILK);
+            assertEq(srcMaxLine, psrcMaxLine, "after: AutoLine invalid maxLine");
+            assertEq(srcGap, pSrcGap - 50_000_000 * RAD, "after: AutoLine invalid gap");
+            assertEq(srcTtl, pSrcTtl, "after: AutoLine invalid ttl");
+            assertEq(srcLast, block.number, "after: AutoLine invalid last");
         }
 
         // New PSM info is added to IlkRegistry
@@ -234,17 +213,17 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
 
         // New PSM: `litePsm`, `mom` and `pocket` are present in Chainlog
         {
-            assertEq(dss.chainlog.getAddress(migCfg.psmMomKey), inst.mom, "after: `mom` not in chainlog");
-            assertEq(dss.chainlog.getAddress(migCfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
-            assertEq(dss.chainlog.getAddress(migCfg.dstPocketKey), pocket, "after: `pocket` not in chainlog");
+            assertEq(dss.chainlog.getAddress("MCD_LITE_PSM_MOM"), inst.mom, "after: `mom` not in chainlog");
+            assertEq(dss.chainlog.getAddress("MCD_LITE_PSM_USDC_A"), inst.litePsm, "after: `litePsm` not in chainlog");
+            assertEq(dss.chainlog.getAddress("MCD_POCKET_LITE_PSM_USDC_A"), pocket, "after: `pocket` not in chainlog");
         }
 
         // New PSM is properly configured on AutoLine
         {
             (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
-            assertEq(maxLine, migCfg.dstMaxLine, "after: AutoLine invalid maxLine");
-            assertEq(gap, migCfg.dstGap, "after: AutoLine invalid gap");
-            assertEq(ttl, uint48(migCfg.dstTtl), "after: AutoLine invalid ttl");
+            assertEq(maxLine, 50_000_000 * RAD, "after: AutoLine invalid maxLine");
+            assertEq(gap, 20_000_000 * RAD, "after: AutoLine invalid gap");
+            assertEq(ttl, 12 hours, "after: AutoLine invalid ttl");
             assertEq(last, block.number, "after: AutoLine invalid last");
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }

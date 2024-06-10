@@ -20,24 +20,6 @@ import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLitePsmMigration.sol";
 
-struct DssLitePsmMigrationConfigPhase1 {
-    bytes32 psmMomKey;
-    address dstPip;
-    bytes32 dstPsmKey;
-    bytes32 dstPocketKey;
-    uint256 dstTin;
-    uint256 dstTout;
-    uint256 dstBuf;
-    uint256 dstMaxLine;
-    uint256 dstGap;
-    uint256 dstTtl;
-    uint256 dstWant;
-    bytes32 srcPsmKey;
-    uint256 srcMaxLine;
-    uint256 srcGap;
-    uint256 srcTtl;
-}
-
 interface DssPsmLike {
     function file(bytes32, uint256) external;
 }
@@ -54,25 +36,26 @@ interface AutoLineLike {
 }
 
 library DssLitePsmMigrationPhase1 {
-    uint256 internal constant RAY = 10 ** 27;
+    uint256 internal constant WAD = 10 ** 18;
+    uint256 internal constant RAD = 10 ** 45;
 
     function initAndMigrate(
         DssInstance memory dss,
         DssLitePsmInstance memory inst,
-        DssLitePsmMigrationConfigPhase1 memory cfg
+        address pocket
     ) internal {
         // 1. Initialize the new PSM,
         DssLitePsmInit.init(
             dss,
             inst,
             DssLitePsmInitConfig({
-                psmMomKey: cfg.psmMomKey,
-                psmKey: cfg.dstPsmKey,
-                pocketKey: cfg.dstPocketKey,
-                buf: cfg.dstBuf,
-                tin: cfg.dstTin,
-                tout: cfg.dstTout,
-                pip: cfg.dstPip
+                psmMomKey: "MCD_LITE_PSM_MOM",
+                psmKey: "MCD_LITE_PSM_USDC_A",
+                pocketKey: "MCD_POCKET_LITE_PSM_USDC_A",
+                pip: dss.chainlog.getAddress("PIP_USDC"),
+                ilk: "LITE-PSM-USDC-A",
+                gem: dss.chainlog.getAddress("USDC"),
+                pocket: pocket
             })
         );
 
@@ -80,33 +63,31 @@ library DssLitePsmMigrationPhase1 {
         MigrationResult memory res = DssLitePsmMigration.migrate(
             dss,
             MigrationConfig({
-                srcPsmKey: cfg.srcPsmKey,
-                dstPsmKey: cfg.dstPsmKey,
-                dstWant: cfg.dstWant,
-                dstBuf: cfg.dstBuf
+                srcPsmKey: "MCD_PSM_USDC_A",
+                dstPsmKey: "MCD_LITE_PSM_USDC_A",
+                move: 10_000_000 * WAD, // TODO: still TBD
+                leave: 100_000_000 * WAD
             })
         );
 
         // 3. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 3.1. Update auto-line for `src.psm`
-        autoLine.setIlk(res.src.ilk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
-        autoLine.exec(res.src.ilk);
+        // 3.1. Update auto-line for `srcPsm`
+        autoLine.setIlk(res.srcIlk, 10_000_000_000 * RAD, 350_000_000 * RAD, 12 hours);
+        autoLine.exec(res.srcIlk);
 
-        // 3.2. Update auto-line for `dst.psm`
-        autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
-        autoLine.exec(res.dst.ilk);
+        // 3.2. Update auto-line for `dstPsm`
+        autoLine.setIlk(res.dstIlk, 50_000_000 * RAD, 20_000_000 * RAD, 12 hours);  // TODO: gap still TBD
+        autoLine.exec(res.dstIlk);
 
-        // 4. Set the final params for `dst.psm`.
-        DssLitePsmLike(res.dst.psm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dst.psm).file("tout", cfg.dstTout);
-        DssLitePsmLike(res.dst.psm).file("buf", cfg.dstBuf);
+        // 4. Set the final params for `dstPsm`.
+        DssLitePsmLike(res.dstPsm).file("buf", 20_000_000 * WAD);  // TODO: still TBD
 
-        // 5. Fill `dst.psm` so there is liquidity available immediately.
-        // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
-        if (DssLitePsmLike(res.dst.psm).rush() > 0) {
-            DssLitePsmLike(res.dst.psm).fill();
+        // 5. Fill `dstPsm` so there is liquidity available immediately.
+        // Notice: `dstPsm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
+        if (DssLitePsmLike(res.dstPsm).rush() > 0) {
+            DssLitePsmLike(res.dstPsm).fill();
         }
     }
 }

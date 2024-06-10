@@ -20,9 +20,9 @@ import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../DssLitePsmDeploy.sol"
 import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
 import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration} from "../DssLitePsmMigration.sol";
-import {DssLitePsmMigrationPhase1, DssLitePsmMigrationConfigPhase1} from "../phase-1/DssLitePsmMigrationPhase1.sol";
-import {DssLitePsmMigrationPhase2, DssLitePsmMigrationConfigPhase2} from "../phase-2/DssLitePsmMigrationPhase2.sol";
-import {DssLitePsmMigrationPhase3, DssLitePsmMigrationConfigPhase3} from "./DssLitePsmMigrationPhase3.sol";
+import {DssLitePsmMigrationPhase1} from "../phase-1/DssLitePsmMigrationPhase1.sol";
+import {DssLitePsmMigrationPhase2} from "../phase-2/DssLitePsmMigrationPhase2.sol";
+import {DssLitePsmMigrationPhase3} from "./DssLitePsmMigrationPhase3.sol";
 
 interface DssPsmLike {
     function tin() external view returns (uint256);
@@ -32,7 +32,6 @@ interface DssPsmLike {
 
 interface DssLitePsmLike is DssPsmLike {
     function buf() external view returns (uint256);
-    function pocket() external view returns (address);
 }
 
 interface ProxyLike {
@@ -51,17 +50,17 @@ contract MigrationCaller {
     function initAndMigrate1(
         DssInstance memory dss,
         DssLitePsmInstance memory inst,
-        DssLitePsmMigrationConfigPhase1 memory cfg
+        address pocket
     ) external {
-        DssLitePsmMigrationPhase1.initAndMigrate(dss, inst, cfg);
+        DssLitePsmMigrationPhase1.initAndMigrate(dss, inst, pocket);
     }
 
-    function migrate2(DssInstance memory dss, DssLitePsmMigrationConfigPhase2 memory cfg) external {
-        DssLitePsmMigrationPhase2.migrate(dss, cfg);
+    function migrate2(DssInstance memory dss) external {
+        DssLitePsmMigrationPhase2.migrate(dss);
     }
 
-    function migrate3(DssInstance memory dss, DssLitePsmMigrationConfigPhase3 memory cfg) external {
-        DssLitePsmMigrationPhase3.migrate(dss, cfg);
+    function migrate3(DssInstance memory dss) external {
+        DssLitePsmMigrationPhase3.migrate(dss);
     }
 }
 
@@ -69,10 +68,7 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
     bytes32 constant GEM_KEY = "USDC";
-    bytes32 constant PSM_MOM_KEY = "MCD_LITE_PSM_MOM";
     bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
-    bytes32 constant DST_PSM_KEY = "MCD_LITE_PSM_USDC_A";
-    bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
     bytes32 constant SRC_ILK = "PSM-USDC-A";
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
 
@@ -89,9 +85,6 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
     address pocket;
     address pip;
     MigrationCaller migCaller;
-    DssLitePsmMigrationConfigPhase1 mig1Cfg;
-    DssLitePsmMigrationConfigPhase2 mig2Cfg;
-    DssLitePsmMigrationConfigPhase3 mig3Cfg;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
@@ -126,59 +119,13 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
         vm.prank(pocket);
         gem.approve(inst.litePsm, type(uint256).max);
 
-        mig1Cfg = DssLitePsmMigrationConfigPhase1({
-            psmMomKey: PSM_MOM_KEY,
-            dstPip: pip,
-            dstPsmKey: DST_PSM_KEY,
-            dstPocketKey: DST_POCKET_KEY,
-            dstTin: 0.01 ether,
-            dstTout: 0.01 ether,
-            dstBuf: 50_000_000 * WAD,
-            dstGap: 50_000_000 * RAD,
-            dstMaxLine: 50_000_000 * RAD,
-            dstTtl: 12 hours,
-            dstWant: 10_000_000 * WAD,
-            srcPsmKey: SRC_PSM_KEY,
-            srcMaxLine: 2_500_000_000 * RAD,
-            srcGap: 100_000_000 * RAD,
-            srcTtl: 12 hours
-        });
-
-        mig2Cfg = DssLitePsmMigrationConfigPhase2({
-            dstPsmKey: DST_PSM_KEY,
-            dstTin: 0.02 ether,
-            dstTout: 0.02 ether,
-            dstBuf: 300_000_000 * WAD,
-            dstMaxLine: 7_500_000_000 * RAD,
-            dstGap: 300_000_000 * RAD,
-            dstTtl: 12 hours,
-            dstWant: 100_000_000 * WAD,
-            srcPsmKey: SRC_PSM_KEY,
-            srcTin: 0.01 ether,
-            srcTout: 0.01 ether,
-            srcMaxLine: 2_500_000_000 * RAD,
-            srcGap: 100_000_000 * RAD,
-            srcTtl: 12 hours
-        });
-
-        mig3Cfg = DssLitePsmMigrationConfigPhase3({
-            dstPsmKey: DST_PSM_KEY,
-            dstTin: 0.03 ether,
-            dstTout: 0.03 ether,
-            dstBuf: 400_000_000 * WAD,
-            dstMaxLine: 10_000_000_000 * RAD,
-            dstGap: 400_000_000 * RAD,
-            dstTtl: 12 hours,
-            srcPsmKey: SRC_PSM_KEY
-        });
-
         vm.label(CHAINLOG, "Chainlog");
         vm.label(pause, "Pause");
         vm.label(vow, "Vow");
         vm.label(address(gem), "USDC");
         vm.label(address(srcPsm), "PsmUsdc");
         vm.label(inst.litePsm, "LitePsm");
-        vm.label(DssLitePsmLike(inst.litePsm).pocket(), "Pocket");
+        vm.label(pocket, "Pocket");
         vm.label(address(pauseProxy), "PauseProxy");
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.jug), "Jug");
@@ -189,9 +136,9 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
 
         // Simulate a spell casting for migration
         vm.prank(pause);
-        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate1, (dss, inst, mig1Cfg)));
+        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate1, (dss, inst, pocket)));
         vm.prank(pause);
-        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate2, (dss, mig2Cfg)));
+        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate2, (dss)));
     }
 
     function testMigrationPhase3() public {
@@ -205,7 +152,7 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
 
         // Simulate a spell casting for migration
         vm.prank(pause);
-        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate3, (dss, mig3Cfg)));
+        pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate3, (dss)));
 
         // Sanity checks
         {
@@ -213,9 +160,9 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
             assertEq(srcPsm.tout(), 0, "after: invalid src tout");
             assertEq(srcPsm.vow(), vow, "after: invalid src vow update");
 
-            assertEq(litePsm.tin(), mig3Cfg.dstTin, "after: invalid dst tin");
-            assertEq(litePsm.tout(), mig3Cfg.dstTout, "after: invalid dst tout");
-            assertEq(litePsm.buf(), mig3Cfg.dstBuf, "after: invalid dst buf");
+            assertEq(litePsm.tin(), 0, "after: invalid dst tin");
+            assertEq(litePsm.tout(), 0, "after: invalid dst tout");
+            assertEq(litePsm.buf(), 400_000_000 * WAD, "after: invalid dst buf");
             assertEq(litePsm.vow(), vow, "after: invalid dst vow update");
         }
 
@@ -231,7 +178,7 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
             (uint256 dstInk, uint256 dstArt) = dss.vat.urns(DST_ILK, address(litePsm));
             // LitePSM ink is never modified
             assertEq(dstInk, pdstInk, "after: invalid dst ink");
-            assertEq(dstArt, pdstArt + psrcArt + (mig3Cfg.dstBuf - mig2Cfg.dstBuf), "after: invalid dst art");
+            assertEq(dstArt, pdstArt + psrcArt + 100_000_000 * WAD, "after: invalid dst art");
         }
 
         // Old PSM is properly configured on AutoLine
@@ -245,9 +192,9 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
         // New PSM is properly configured on AutoLine
         {
             (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
-            assertEq(maxLine, mig3Cfg.dstMaxLine, "after: AutoLine invalid maxLine");
-            assertEq(gap, mig3Cfg.dstGap, "after: AutoLine invalid gap");
-            assertEq(ttl, uint48(mig3Cfg.dstTtl), "after: AutoLine invalid ttl");
+            assertEq(maxLine, 10_000_000_000 * RAD, "after: AutoLine invalid maxLine");
+            assertEq(gap, 400_000_000 * RAD, "after: AutoLine invalid gap");
+            assertEq(ttl, 12 hours, "after: AutoLine invalid ttl");
             assertEq(last, block.number, "after: AutoLine invalid last");
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
