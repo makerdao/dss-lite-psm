@@ -22,23 +22,20 @@ struct DssLitePsmInitConfig {
     bytes32 psmKey;
     bytes32 pocketKey;
     bytes32 psmMomKey;
-    uint256 buf;
-    uint256 tin;
-    uint256 tout;
     address pip;
+    bytes32 ilk;
+    address gem;
+    address pocket;
 }
 
 interface DssLitePsmLike {
     function daiJoin() external view returns (address);
     function file(bytes32, address) external;
-    function file(bytes32, uint256) external;
-    function fill() external returns (uint256);
     function gem() external view returns (address);
     function ilk() external view returns (bytes32);
+    function kiss(address) external;
     function pocket() external view returns (address);
     function rely(address) external;
-    function sellGem(address, uint256) external returns (uint256);
-    function to18ConversionFactor() external view returns (uint256);
 }
 
 interface DssLitePsmMomLike {
@@ -61,12 +58,6 @@ interface GemLike {
     function symbol() external view returns (string memory);
 }
 
-interface AutoLineLike {
-    function exec(bytes32) external returns (uint256);
-    function remIlk(bytes32) external;
-    function setIlk(bytes32, uint256, uint256, uint256) external;
-}
-
 interface IlkRegistryLike {
     function put(
         bytes32 _ilk,
@@ -79,90 +70,81 @@ interface IlkRegistryLike {
         string memory _name,
         string memory _symbol
     ) external;
-    function gem(bytes32 ilk) external view returns (address);
-    function join(bytes32 ilk) external view returns (address);
 }
 
 library DssLitePsmInit {
-    /// @dev Workaround to explicitly revert with an arithmetic error.
-    string internal constant ARITHMETIC_ERROR = string(abi.encodeWithSignature("Panic(uint256)", 0x11));
-
     uint256 internal constant WAD = 10 ** 18;
     uint256 internal constant RAY = 10 ** 27;
 
-    // New `IlkRegistry` class
+    // @dev New `IlkRegistry` class
     uint256 internal constant REG_CLASS_JOINLESS = 6;
 
-    ///@dev Safely converts `uint256` to `int256`. Reverts if it overflows.
-    function _int256(uint256 x) internal pure returns (int256 y) {
-        require((y = int256(x)) >= 0, ARITHMETIC_ERROR);
-    }
-
-    function _min(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        z = x < y ? x : y;
-    }
-
+    /**
+     * @dev Initializes a DssLitePsm instance.
+     * @param dss The DSS instance.
+     * @param inst The DssLitePsm intance.
+     * @param cfg The init config.
+     */
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
         // Sanity checks
         require(cfg.psmKey != cfg.pocketKey, "DssLitePsmInit/dst-psm-same-key-pocket");
+        require(DssLitePsmLike(inst.litePsm).ilk() == cfg.ilk, "DssLitePsmInit/ilk-mismatch");
+        require(DssLitePsmLike(inst.litePsm).gem() == cfg.gem, "DssLitePsmInit/gem-mismatch");
+        require(DssLitePsmLike(inst.litePsm).pocket() == cfg.pocket, "DssLitePsmInit/pocket-mismatch");
         require(DssLitePsmLike(inst.litePsm).daiJoin() == address(dss.daiJoin), "DssLitePsmInit/dai-join-mismatch");
-        address pocket = DssLitePsmLike(inst.litePsm).pocket();
-        bytes32 ilk = DssLitePsmLike(inst.litePsm).ilk();
-        address gem = DssLitePsmLike(inst.litePsm).gem();
         // Ensure `litePsm` can spend `gem` on behalf of `pocket`.
         require(
-            GemLike(gem).allowance(pocket, inst.litePsm) == type(uint256).max, "DssLitePsmInit/invalid-pocket-allowance"
+            GemLike(cfg.gem).allowance(cfg.pocket, inst.litePsm) == type(uint256).max,
+            "DssLitePsmInit/invalid-pocket-allowance"
         );
 
         // 1. Initialize the new ilk
-        dss.vat.init(ilk);
-        dss.jug.init(ilk);
-        dss.spotter.file(ilk, "mat", 1 * RAY);
+        dss.vat.init(cfg.ilk);
+        dss.jug.init(cfg.ilk);
+        dss.spotter.file(cfg.ilk, "mat", 1 * RAY);
         require(uint256(PipLike(cfg.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
-        dss.spotter.file(ilk, "pip", cfg.pip);
-        dss.spotter.poke(ilk);
+        dss.spotter.file(cfg.ilk, "pip", cfg.pip);
+        dss.spotter.poke(cfg.ilk);
 
         // 2. Initial `litePsm` setup
+        // Set `ink` to the largest value that will not cause an overflow for `ink * spot`.
+        // NOTICE: `litePsm` assumes that:
+        //   a. `spotter.par == RAY`
+        //   b. `vat.ilks[ilk].spot == RAY`
+        int256 vink = int256(type(uint256).max / RAY);
+        dss.vat.slip(cfg.ilk, inst.litePsm, vink);
+        dss.vat.grab(cfg.ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
 
-        {
-            // Set `ink` to the largest value that won't cause an overflow for `ink * spot`.
-            // Notice that `litePsm` assumes that:
-            //   a. `spotter.par == RAY`
-            //   b. `vat.ilks[ilk].spot == RAY`
-            int256 vink = int256(type(uint256).max / RAY);
-            dss.vat.slip(ilk, inst.litePsm, vink);
-            dss.vat.grab(ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
-        }
-
-        // 4. Set `litePsm` config params.
-        DssLitePsmLike(inst.litePsm).file("tin", cfg.tin);
-        DssLitePsmLike(inst.litePsm).file("tout", cfg.tout);
-        DssLitePsmLike(inst.litePsm).file("buf", cfg.buf);
+        // 3. Set `litePsm` config params.
+        // NOTICE: `buf`, `tin` and `tout` need to be set in the higher level migration scripts.
         DssLitePsmLike(inst.litePsm).file("vow", dss.chainlog.getAddress("MCD_VOW"));
 
-        // 5. Rely `mom` on `litePsm`
-        DssLitePsmLike(inst.litePsm).rely(inst.mom);
+        // 4. Allow `MCD_PAUSE_PROXY` to swap with no fees on `litePsm`.
+        DssLitePsmLike(inst.litePsm).kiss(address(this));
 
-        // 6. Set the chief as authority for `mom`.
+        // 5. Configure `mom`
+        // 5.1 Rely `mom` on `litePsm`
+        DssLitePsmLike(inst.litePsm).rely(inst.mom);
+        // 5.2. Set the chief as authority for `mom`.
         DssLitePsmMomLike(inst.mom).setAuthority(dss.chainlog.getAddress("MCD_ADM"));
 
-        // 7. Add `litePsm` to `IlkRegistry`
+        // 6. Add `litePsm` to `IlkRegistry`
         IlkRegistryLike reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         reg.put(
-            ilk,
+            cfg.ilk,
             address(0), // No `gemJoin` for `litePsm`
-            gem,
-            GemLike(gem).decimals(),
+            cfg.gem,
+            GemLike(cfg.gem).decimals(),
             REG_CLASS_JOINLESS,
             cfg.pip,
             address(0), // No `clip` for `litePsm`
-            GemLike(gem).name(),
-            GemLike(gem).symbol()
+            GemLike(cfg.gem).name(),
+            GemLike(cfg.gem).symbol()
         );
 
-        // 8. Add `litePsm`, `mom` and `pocket` to the chainlog.
+        // 7. Add `litePsm`, `mom` and `pocket` to the chainlog.
         dss.chainlog.setAddress(cfg.psmKey, inst.litePsm);
         dss.chainlog.setAddress(cfg.psmMomKey, inst.mom);
-        dss.chainlog.setAddress(cfg.pocketKey, pocket);
+        dss.chainlog.setAddress(cfg.pocketKey, cfg.pocket);
     }
 }

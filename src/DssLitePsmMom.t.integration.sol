@@ -96,9 +96,9 @@ contract DssLitePsmMomTest is DssTest {
             psmMomKey: PSM_MOM_KEY,
             pocketKey: POCKET_KEY,
             pip: pip,
-            buf: 50_000_000 * WAD,
-            tin: 0,
-            tout: 0
+            ilk: ILK,
+            gem: address(gem),
+            pocket: pocket
         });
 
         vm.label(CHAINLOG, "Chainlog");
