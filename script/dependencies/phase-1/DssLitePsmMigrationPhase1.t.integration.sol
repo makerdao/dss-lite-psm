@@ -18,8 +18,6 @@ pragma solidity ^0.8.16;
 import "dss-test/DssTest.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../DssLitePsmDeploy.sol";
 import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
-import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
-import {DssLitePsmMigration} from "../DssLitePsmMigration.sol";
 import {DssLitePsmMigrationPhase1, DssLitePsmMigrationConfigPhase1} from "./DssLitePsmMigrationPhase1.sol";
 
 interface DssPsmLike {
@@ -30,6 +28,7 @@ interface DssPsmLike {
 
 interface DssLitePsmLike is DssPsmLike {
     function buf() external view returns (uint256);
+    function to18ConversionFactor() external view returns (uint256);
 }
 
 interface ProxyLike {
@@ -38,7 +37,6 @@ interface ProxyLike {
 
 interface AutoLineLike {
     function ilks(bytes32) external view returns (uint256 line, uint256 gap, uint48 ttl, uint48 last, uint48 lastInc);
-    function exec(bytes32) external;
 }
 
 interface IlkRegistryLike {
@@ -59,9 +57,18 @@ interface IlkRegistryLike {
 
 interface GemLike {
     function approve(address, uint256) external;
+    function balanceOf(address) external view returns (uint256);
     function name() external view returns (string memory);
     function symbol() external view returns (string memory);
     function decimals() external view returns (uint8);
+}
+
+interface EsmLike {
+    function min() external view returns (uint256);
+}
+
+interface PauseLike {
+    function delay() external view returns (uint256);
 }
 
 contract MigrationCaller {
@@ -87,15 +94,16 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
     uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
 
     DssInstance dss;
-    address pause;
+    PauseLike pause;
     address vow;
     DssPsmLike srcPsm;
     address chief;
     IlkRegistryLike reg;
     ProxyLike pauseProxy;
     AutoLineLike autoLine;
+    EsmLike esm;
     DssLitePsmInstance inst;
-    DssLitePsmLike litePsm;
+    DssLitePsmLike dstPsm;
     GemLike gem;
     address pocket;
     address pip;
@@ -107,12 +115,13 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
 
         dss = MCD.loadFromChainlog(CHAINLOG);
 
-        pause = dss.chainlog.getAddress("MCD_PAUSE");
+        pause = PauseLike(dss.chainlog.getAddress("MCD_PAUSE"));
         vow = dss.chainlog.getAddress("MCD_VOW");
         reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
+        esm = EsmLike(dss.chainlog.getAddress("MCD_ESM"));
         srcPsm = DssPsmLike(dss.chainlog.getAddress(SRC_PSM_KEY));
         gem = GemLike(dss.chainlog.getAddress(GEM_KEY));
         pocket = makeAddr("Pocket");
@@ -131,31 +140,37 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             })
         );
 
-        litePsm = DssLitePsmLike(inst.litePsm);
+        dstPsm = DssLitePsmLike(inst.litePsm);
 
         vm.prank(pocket);
         gem.approve(inst.litePsm, type(uint256).max);
 
         migCfg = DssLitePsmMigrationConfigPhase1({
+            esmMin: 300_000 * WAD,
+            gsmDelay: 16 hours,
             psmMomKey: PSM_MOM_KEY,
-            dstPip: pip,
             dstPsmKey: DST_PSM_KEY,
             dstPocketKey: DST_POCKET_KEY,
-            dstTin: 0.025 ether,
-            dstTout: 0.025 ether,
-            dstBuf: 50_000_000 * WAD,
-            dstGap: 50_000_000 * RAD,
+            dstPip: pip,
+            dstIlk: DST_ILK,
+            dstGem: address(gem),
+            dstPocket: pocket,
+            dstTin: 0,
+            dstTout: 0,
+            dstBuf: 10_000_000 * WAD,
             dstMaxLine: 50_000_000 * RAD,
+            dstGap: 20_000_000 * RAD,
             dstTtl: 12 hours,
             dstWant: 10_000_000 * WAD,
             srcPsmKey: SRC_PSM_KEY,
-            srcMaxLine: 2_500_000_000 * RAD,
-            srcGap: 100_000_000 * RAD,
+            srcKeep: 0 * WAD,
+            srcMaxLine: 10_000_000_000 * RAD,
+            srcGap: 350_000_000 * RAD,
             srcTtl: 12 hours
         });
 
         vm.label(CHAINLOG, "Chainlog");
-        vm.label(pause, "Pause");
+        vm.label(address(pause), "Pause");
         vm.label(vow, "Vow");
         vm.label(address(srcPsm), "PsmUsdc");
         vm.label(inst.litePsm, "LitePsm");
@@ -168,36 +183,69 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         vm.label(address(autoLine), "AutoLine");
     }
 
+    struct PauseProxyTestParams {
+        uint256 daiBalance; // [wad]
+        uint256 vatDaiBalance; // [rad]
+        uint256 vatSin; // [rad]
+    }
+
     function testMigrationPhase1() public {
-        (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
-        uint256 psrcTin = srcPsm.tin();
-        uint256 psrcTout = srcPsm.tout();
-        assertGt(psrcIlkArt, 0, "before: src ilk Art is zero");
-        assertGt(psrcLine, 0, "before: src line is zero");
-        assertGt(psrcArt, 0, "before: src art is zero");
-        assertGt(psrcInk, 0, "before: src ink is zero");
+        uint256 psrcVatGem = dss.vat.gem(SRC_ILK, address(srcPsm));
+        uint256 pdstVatGem = dss.vat.gem(DST_ILK, address(dstPsm));
+
+        PauseProxyTestParams memory ppp;
+        ppp.daiBalance = dss.dai.balanceOf(address(pauseProxy));
+        ppp.vatDaiBalance = dss.vat.dai(address(pauseProxy));
+        ppp.vatSin = dss.vat.sin(address(pauseProxy));
+
+        // Pre-conditions
+        {
+            (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
+            assertGt(psrcIlkArt, 0, "before: src ilk Art is zero");
+            assertGt(psrcLine, 0, "before: src line is zero");
+            assertGt(psrcArt, 0, "before: src art is zero");
+            assertGt(psrcInk, 0, "before: src ink is zero");
+        }
 
         // Simulate a spell casting for migration
-        vm.prank(pause);
+        vm.prank(address(pause));
         pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate, (dss, inst, migCfg)));
 
         // Sanity checks
         {
+            uint256 psrcTin = srcPsm.tin();
+            uint256 psrcTout = srcPsm.tout();
             assertEq(srcPsm.tin(), psrcTin, "after: invalid src tin update");
             assertEq(srcPsm.tout(), psrcTout, "after: invalid src tout update");
             assertEq(srcPsm.vow(), vow, "after: invalid src vow update");
-
-            assertEq(litePsm.tin(), migCfg.dstTin, "after: invalid dst tin");
-            assertEq(litePsm.tout(), migCfg.dstTout, "after: invalid dst tout");
-            assertEq(litePsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
-            assertEq(litePsm.vow(), vow, "after: invalid dst vow update");
+            assertEq(dstPsm.tin(), migCfg.dstTin, "after: invalid dst tin");
+            assertEq(dstPsm.tout(), migCfg.dstTout, "after: invalid dst tout");
+            assertEq(dstPsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
+            assertEq(dstPsm.vow(), vow, "after: invalid dst vow update");
         }
 
-        // Old PSM ink is decreased by the correct amount
+        // PauseProxy state should not have changed
+        assertEq(
+            dss.dai.balanceOf(address(pauseProxy)), ppp.daiBalance, "after: unexpected pauseProxy dai balance change"
+        );
+        assertEq(
+            dss.vat.dai(address(pauseProxy)), ppp.vatDaiBalance, "after: unexpected pauseProxy vat dai balance change"
+        );
+        assertEq(dss.vat.sin(address(pauseProxy)), ppp.vatSin, "after: unexpected pauseProxy vat sin change");
+
+        // ESM min threshold is properly set
+        assertEq(esm.min(), migCfg.esmMin, "after: esm min not properly set");
+
+        // GSM delay is properly set
+        assertEq(pause.delay(), migCfg.gsmDelay, "after: gsm delay not properly set");
+
+        // Old PSM state is set correctly
         {
-            (uint256 srcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
+            (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
             assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by want");
+            assertEq(srcArt, psrcArt - migCfg.dstWant, "after: src ink is not decreased by want");
+            assertEq(dss.vat.gem(SRC_ILK, address(srcPsm)), psrcVatGem, "after: unexpected src vat gem change");
         }
 
         // Old PSM is properly configured on AutoLine
@@ -232,12 +280,10 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(clip, address(0), "after: invalid reg xlip");
         }
 
-        // New PSM: `litePsm`, `mom` and `pocket` are present in Chainlog
-        {
-            assertEq(dss.chainlog.getAddress(migCfg.psmMomKey), inst.mom, "after: `mom` not in chainlog");
-            assertEq(dss.chainlog.getAddress(migCfg.dstPsmKey), inst.litePsm, "after: `litePsm` not in chainlog");
-            assertEq(dss.chainlog.getAddress(migCfg.dstPocketKey), pocket, "after: `pocket` not in chainlog");
-        }
+        // New PSM: `dstPsm`, `mom` and `pocket` are present in Chainlog
+        assertEq(dss.chainlog.getAddress(migCfg.psmMomKey), inst.mom, "after: `mom` not in chainlog");
+        assertEq(dss.chainlog.getAddress(migCfg.dstPsmKey), inst.litePsm, "after: `dstPsm` not in chainlog");
+        assertEq(dss.chainlog.getAddress(migCfg.dstPocketKey), pocket, "after: `pocket` not in chainlog");
 
         // New PSM is properly configured on AutoLine
         {
@@ -248,5 +294,16 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(last, block.number, "after: AutoLine invalid last");
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
+
+        // New PSM has the expected amount of pre-minted Dai
+        assertEq(dss.dai.balanceOf(address(dstPsm)), migCfg.dstBuf, "after: invalid dst psm dai balance");
+        // New PSM vat gem has not changed
+        assertEq(dss.vat.gem(DST_ILK, address(dstPsm)), pdstVatGem, "after: unexpected dst vat gem change");
+        // New PSM pocket gem balance is properly set
+        assertEq(_amtToWad(gem.balanceOf(address(pocket))), migCfg.dstWant, "after: invalid gem balance for dst pocket");
+    }
+
+    function _amtToWad(uint256 amt) internal view returns (uint256) {
+        return amt * dstPsm.to18ConversionFactor();
     }
 }

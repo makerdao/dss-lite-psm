@@ -21,21 +21,27 @@ import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLitePsmMigration.sol";
 
 struct DssLitePsmMigrationConfigPhase1 {
+    uint256 esmMin; // [wad]
+    uint256 gsmDelay; // [seconds]
     bytes32 psmMomKey;
-    address dstPip;
     bytes32 dstPsmKey;
     bytes32 dstPocketKey;
-    uint256 dstTin;
-    uint256 dstTout;
-    uint256 dstBuf;
-    uint256 dstMaxLine;
-    uint256 dstGap;
-    uint256 dstTtl;
-    uint256 dstWant;
+    address dstPip;
+    bytes32 dstIlk;
+    address dstGem;
+    address dstPocket;
+    uint256 dstTin; // [wad] - 10**18 = 100%
+    uint256 dstTout; // [wad] - 10**18 = 100%
+    uint256 dstBuf; // [wad]
+    uint256 dstMaxLine; // [rad]
+    uint256 dstGap; // [rad]
+    uint256 dstTtl; // [seconds]
+    uint256 dstWant; // [wad]
     bytes32 srcPsmKey;
-    uint256 srcMaxLine;
-    uint256 srcGap;
-    uint256 srcTtl;
+    uint256 srcKeep; // [wad]
+    uint256 srcMaxLine; // [rad]
+    uint256 srcGap; // [rad]
+    uint256 srcTtl; // [seconds]
 }
 
 interface DssPsmLike {
@@ -53,15 +59,36 @@ interface AutoLineLike {
     function setIlk(bytes32, uint256, uint256, uint256) external;
 }
 
-library DssLitePsmMigrationPhase1 {
-    uint256 internal constant RAY = 10 ** 27;
+interface EsmLike {
+    function file(bytes32, uint256) external;
+}
 
+interface PauseLike {
+    function setDelay(uint256) external;
+}
+
+library DssLitePsmMigrationPhase1 {
+    /**
+     * @dev Initializes a LitePsm instance and performs the initial migration of funds.
+     * @param dss The MCD instance.
+     * @param inst The LitePsm instance.
+     * @param cfg The migration config params.
+     */
     function initAndMigrate(
         DssInstance memory dss,
         DssLitePsmInstance memory inst,
         DssLitePsmMigrationConfigPhase1 memory cfg
     ) internal {
-        // 1. Initialize the new PSM,
+        // Sanity checks
+        //
+
+        // 1. Set ESM threshold.
+        EsmLike(dss.chainlog.getAddress("MCD_ESM")).file("min", cfg.esmMin);
+
+        // 2. Set GSM delay.
+        PauseLike(dss.chainlog.getAddress("MCD_PAUSE")).setDelay(cfg.gsmDelay);
+
+        // 3. Initialize the new PSM,
         DssLitePsmInit.init(
             dss,
             inst,
@@ -69,44 +96,46 @@ library DssLitePsmMigrationPhase1 {
                 psmMomKey: cfg.psmMomKey,
                 psmKey: cfg.dstPsmKey,
                 pocketKey: cfg.dstPocketKey,
-                buf: cfg.dstBuf,
-                tin: cfg.dstTin,
-                tout: cfg.dstTout,
-                pip: cfg.dstPip
+                pip: cfg.dstPip,
+                ilk: cfg.dstIlk,
+                gem: cfg.dstGem,
+                pocket: cfg.dstPocket
             })
         );
 
-        // 2. Migrate some funds to the new PSM.
+        // 4. Migrate some funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(
             dss,
             MigrationConfig({
                 srcPsmKey: cfg.srcPsmKey,
                 dstPsmKey: cfg.dstPsmKey,
-                dstWant: cfg.dstWant,
-                dstBuf: cfg.dstBuf
+                srcKeep: cfg.srcKeep,
+                dstWant: cfg.dstWant
             })
         );
 
-        // 3. Update auto-line.
+        // 5. Update auto-line.
+        // NOTICE: Setting auto-line parameters automatically resets time intervals.
+        // Effectively, it allows `litePsm` `line` to increase faster than expected.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 3.1. Update auto-line for `src.psm`
-        autoLine.setIlk(res.src.ilk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
-        autoLine.exec(res.src.ilk);
+        // 5.1. Update auto-line for `src.psm`
+        autoLine.setIlk(res.srcIlk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
+        autoLine.exec(res.srcIlk);
 
-        // 3.2. Update auto-line for `dst.psm`
-        autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
-        autoLine.exec(res.dst.ilk);
+        // 5.2. Update auto-line for `dst.psm`
+        autoLine.setIlk(res.dstIlk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
+        autoLine.exec(res.dstIlk);
 
-        // 4. Set the final params for `dst.psm`.
-        DssLitePsmLike(res.dst.psm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dst.psm).file("tout", cfg.dstTout);
-        DssLitePsmLike(res.dst.psm).file("buf", cfg.dstBuf);
+        // 6. Set the final params for `dst.psm`.
+        DssLitePsmLike(res.dstPsm).file("tin", cfg.dstTin);
+        DssLitePsmLike(res.dstPsm).file("tout", cfg.dstTout);
+        DssLitePsmLike(res.dstPsm).file("buf", cfg.dstBuf);
 
-        // 5. Fill `dst.psm` so there is liquidity available immediately.
+        // 7. Fill `dst.psm` so there is liquidity available immediately.
         // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
-        if (DssLitePsmLike(res.dst.psm).rush() > 0) {
-            DssLitePsmLike(res.dst.psm).fill();
+        if (DssLitePsmLike(res.dstPsm).rush() > 0) {
+            DssLitePsmLike(res.dstPsm).fill();
         }
     }
 }
