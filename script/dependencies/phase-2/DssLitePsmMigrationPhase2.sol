@@ -30,6 +30,7 @@ struct DssLitePsmMigrationConfigPhase2 {
     uint256 dstTtl;
     uint256 dstWant;
     bytes32 srcPsmKey;
+    uint256 srcKeep;
     uint256 srcTin;
     uint256 srcTout;
     uint256 srcMaxLine;
@@ -62,34 +63,58 @@ library DssLitePsmMigrationPhase2 {
             MigrationConfig({
                 srcPsmKey: cfg.srcPsmKey,
                 dstPsmKey: cfg.dstPsmKey,
-                dstWant: cfg.dstWant,
-                dstBuf: cfg.dstBuf
+                srcKeep: cfg.srcKeep,
+                dstWant: cfg.dstWant
             })
         );
+
+        /**
+         * NOTICE:
+         * There is a potential Flash Loan™ scenario which could prevent the desired amount of collateral
+         * (`cfg.srcKeep`) to remain in `srcPsm`.
+         *
+         * For any amount `ink` that exists in `srcPsm`, the attacker could:
+         *   1. Flash loan `ink` Dai.
+         *   2. Sell Dai into `srcPsm` to leave it empty.
+         *   3. Cast the spell - effectively nothing will be migrated, since the remaining `ink` is zero.
+         *   4. Sell the gems obtained in step 2 into `dstPsm`.
+         *
+         * While it is possible to carry out that scenario at any point in time, if the user tries to do it before the
+         * spell is cast, they will most likely be constrained by the low `line` set for `dstPsm`. If they try to do it
+         * afterwards, there will be swap fees on `srcPsm`, which would make the costs high enough to disincentivize it.
+         *
+         * To prevent the issue described above, we are making an exception to the rule that spells should not revert
+         * and actually checking if the desired amount of collateral remains in `srcPsm`.
+         *
+         * Even if the spell reverts because `srcInk` naturally became too low by the time of casting, the Maker
+         * community could replenish `srcPsm` and try to cast the spell again right the way so it does not fail.
+         */
+        (uint256 srcInk,) = dss.vat.urns(res.srcIlk, res.srcPsm);
+        require(srcInk >= cfg.srcKeep, "DssLitePsmMigrationPhase2/remaining-ink-too-low");
 
         // 2. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 2.1. Update auto-line for `src.psm`
-        autoLine.setIlk(res.src.ilk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
-        autoLine.exec(res.src.ilk);
+        // 2.1. Update auto-line for `srcPsm`
+        autoLine.setIlk(res.srcIlk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
+        autoLine.exec(res.srcIlk);
 
-        // 2.2. Update auto-line for `dst.psm`
-        autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
-        autoLine.exec(res.dst.ilk);
+        // 2.2. Update auto-line for `dstPsm`
+        autoLine.setIlk(res.dstIlk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
+        autoLine.exec(res.dstIlk);
 
         // 3. Set the final params for both PSMs.
-        DssPsmLike(res.src.psm).file("tin", cfg.srcTin);
-        DssPsmLike(res.src.psm).file("tout", cfg.srcTout);
+        DssPsmLike(res.srcPsm).file("tin", cfg.srcTin);
+        DssPsmLike(res.srcPsm).file("tout", cfg.srcTout);
 
-        DssLitePsmLike(res.dst.psm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dst.psm).file("tout", cfg.dstTout);
-        DssLitePsmLike(res.dst.psm).file("buf", cfg.dstBuf);
+        DssLitePsmLike(res.dstPsm).file("tin", cfg.dstTin);
+        DssLitePsmLike(res.dstPsm).file("tout", cfg.dstTout);
+        DssLitePsmLike(res.dstPsm).file("buf", cfg.dstBuf);
 
         // 4. Fill `dst.psm` so there is liquidity available immediately.
         // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
-        if (DssLitePsmLike(res.dst.psm).rush() > 0) {
-            DssLitePsmLike(res.dst.psm).fill();
+        if (DssLitePsmLike(res.dstPsm).rush() > 0) {
+            DssLitePsmLike(res.dstPsm).fill();
         }
     }
 }
