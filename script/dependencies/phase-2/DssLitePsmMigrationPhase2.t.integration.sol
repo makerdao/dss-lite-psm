@@ -57,6 +57,10 @@ interface GemLike {
     function balanceOf(address) external view returns (uint256);
 }
 
+interface PauseLike {
+    function delay() external view returns (uint256);
+}
+
 contract MigrationCaller {
     function initAndMigrate1(
         DssInstance memory dss,
@@ -83,7 +87,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
 
     DssInstance dss;
-    address pause;
+    PauseLike pause;
     address vow;
     DssPsmLike srcPsm;
     address chief;
@@ -103,7 +107,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
 
         dss = MCD.loadFromChainlog(CHAINLOG);
 
-        pause = dss.chainlog.getAddress("MCD_PAUSE");
+        pause = PauseLike(dss.chainlog.getAddress("MCD_PAUSE"));
         vow = dss.chainlog.getAddress("MCD_VOW");
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
@@ -156,6 +160,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         });
 
         mig2Cfg = DssLitePsmMigrationConfigPhase2({
+            gsmDelay: 48 hours,
             dstPsmKey: DST_PSM_KEY,
             dstTin: 0,
             dstTout: 0,
@@ -174,7 +179,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         });
 
         vm.label(CHAINLOG, "Chainlog");
-        vm.label(pause, "Pause");
+        vm.label(address(pause), "Pause");
         vm.label(vow, "Vow");
         vm.label(address(gem), "USDC");
         vm.label(address(srcPsm), "PsmUsdc");
@@ -189,7 +194,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         vm.label(address(autoLine), "AutoLine");
 
         // Simulate a spell casting for migration
-        vm.prank(pause);
+        vm.prank(address(pause));
         pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate1, (dss, inst, mig1Cfg)));
     }
 
@@ -297,7 +302,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         uint256 expectedMoveWad = _min(psrcInk, _min(mig2Cfg.dstWant, _subcap(psrcInk, mig2Cfg.srcKeep)));
 
         // Simulate a spell casting for migration
-        vm.prank(pause);
+        vm.prank(address(pause));
         pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate2, (dss, mig2Cfg)));
 
         // Sanity checks
@@ -309,6 +314,9 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         assertEq(dstPsm.tout(), mig2Cfg.dstTout, "after: invalid dst tout");
         assertEq(dstPsm.buf(), mig2Cfg.dstBuf, "after: invalid dst buf");
         assertEq(dstPsm.vow(), vow, "after: unexpected dst vow update");
+
+        // GSM delay is properly set
+        assertEq(pause.delay(), mig2Cfg.gsmDelay, "after: gsm delay not properly set");
 
         // Old PSM state is set correctly
         {
