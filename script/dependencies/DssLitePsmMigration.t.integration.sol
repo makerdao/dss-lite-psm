@@ -175,6 +175,12 @@ contract DssLitePsmMigrationTest is DssTest {
         uint256 daiBalance;
     }
 
+    struct TestPauseProxyParams {
+        uint256 daiBalance; // [wad]
+        uint256 vatDaiBalance; // [rad]
+        uint256 vatSin; // [rad]
+    }
+
     function testLitePsmMigration_Fuzz(uint256 srcKeep, uint256 dstWant) public {
         // Remove potential rounding issues.
         uint256 to18CF = dstPsm.to18ConversionFactor();
@@ -195,6 +201,11 @@ contract DssLitePsmMigrationTest is DssTest {
         pdst.gemBalance = gem.balanceOf(address(pocket));
         pdst.daiBalance = dss.dai.balanceOf(address(dstPsm));
 
+        TestPauseProxyParams memory ppp;
+        ppp.daiBalance = dss.dai.balanceOf(address(pauseProxy));
+        ppp.vatDaiBalance = dss.vat.dai(address(pauseProxy));
+        ppp.vatSin = dss.vat.sin(address(pauseProxy));
+
         uint256 pglobalLine = dss.vat.Line();
         uint256 expectedSap = _min(migCfg.dstWant, _subcap(psrc.ink, migCfg.srcKeep));
 
@@ -211,6 +222,16 @@ contract DssLitePsmMigrationTest is DssTest {
         assertEq(res.sap, expectedSap, "res: invalid moved amount");
 
         assertEq(dss.vat.Line(), pglobalLine, "after: unexpected global line change");
+
+        // PauseProxy state should not have changed
+        assertEq(
+            dss.dai.balanceOf(address(pauseProxy)), ppp.daiBalance, "after: unexpected pauseProxy dai balance change"
+        );
+        assertEq(
+            dss.vat.dai(address(pauseProxy)), ppp.vatDaiBalance, "after: unexpected pauseProxy vat dai balance change"
+        );
+        assertEq(dss.vat.sin(address(pauseProxy)), ppp.vatSin, "after: unexpected pauseProxy vat sin change");
+
 
         // Old PSM state was properly updated
         (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));

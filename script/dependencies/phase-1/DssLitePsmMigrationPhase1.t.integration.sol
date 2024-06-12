@@ -183,21 +183,10 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         vm.label(address(autoLine), "AutoLine");
     }
 
-    struct PauseProxyTestParams {
-        uint256 daiBalance; // [wad]
-        uint256 vatDaiBalance; // [rad]
-        uint256 vatSin; // [rad]
-    }
-
     function testMigrationPhase1() public {
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
         uint256 psrcVatGem = dss.vat.gem(SRC_ILK, address(srcPsm));
         uint256 pdstVatGem = dss.vat.gem(DST_ILK, address(dstPsm));
-
-        PauseProxyTestParams memory ppp;
-        ppp.daiBalance = dss.dai.balanceOf(address(pauseProxy));
-        ppp.vatDaiBalance = dss.vat.dai(address(pauseProxy));
-        ppp.vatSin = dss.vat.sin(address(pauseProxy));
 
         // Pre-conditions
         {
@@ -224,15 +213,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(dstPsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
             assertEq(dstPsm.vow(), vow, "after: invalid dst vow update");
         }
-
-        // PauseProxy state should not have changed
-        assertEq(
-            dss.dai.balanceOf(address(pauseProxy)), ppp.daiBalance, "after: unexpected pauseProxy dai balance change"
-        );
-        assertEq(
-            dss.vat.dai(address(pauseProxy)), ppp.vatDaiBalance, "after: unexpected pauseProxy vat dai balance change"
-        );
-        assertEq(dss.vat.sin(address(pauseProxy)), ppp.vatSin, "after: unexpected pauseProxy vat sin change");
 
         // ESM min threshold is properly set
         assertEq(esm.min(), migCfg.esmMin, "after: esm min not properly set");
