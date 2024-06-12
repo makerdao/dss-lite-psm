@@ -17,7 +17,6 @@ pragma solidity ^0.8.16;
 
 import {DssInstance} from "dss-test/MCD.sol";
 import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
-import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
 import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLitePsmMigration.sol";
 
 struct DssLitePsmMigrationConfigPhase2 {
