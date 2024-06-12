@@ -44,10 +44,6 @@ struct DssLitePsmMigrationConfigPhase1 {
     uint256 srcTtl; // [seconds]
 }
 
-interface DssPsmLike {
-    function file(bytes32, uint256) external;
-}
-
 interface DssLitePsmLike {
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
