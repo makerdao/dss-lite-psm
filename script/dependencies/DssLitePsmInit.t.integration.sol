@@ -143,13 +143,14 @@ contract DssLitePsmInitTest is DssTest {
     }
 
     function testLitePsmInit() public {
+        // Sanity check: initialization can only happen if the ilk has not been onboarded yet.
         {
             (uint256 pilkArt,,, uint256 pline,) = dss.vat.ilks(ILK);
             (uint256 pink, uint256 part) = dss.vat.urns(ILK, inst.litePsm);
-            assertEq(pilkArt, 0, "before: ilk Art is not zero");
-            assertEq(pline, 0, "before: line is not zero");
-            assertEq(part, 0, "before: art is not zero");
-            assertEq(pink, 0, "before: ink is not zero");
+            assertEq(pilkArt, 0, "before: ilk already initialized - Art is not zero");
+            assertEq(pline, 0, "before: ilk already initialized - line is not zero");
+            assertEq(part, 0, "before: ilk already initialized - art is not zero");
+            assertEq(pink, 0, "before: ilk already initialized - ink is not zero");
         }
 
         // `litePsm`, `mom` and `pocket` are not present in Chainlog
