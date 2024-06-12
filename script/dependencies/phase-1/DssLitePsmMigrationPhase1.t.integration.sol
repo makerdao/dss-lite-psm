@@ -157,7 +157,7 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             dstPocket: pocket,
             dstTin: 0,
             dstTout: 0,
-            dstBuf: 10_000_000 * WAD,
+            dstBuf: 20_000_000 * WAD,
             dstMaxLine: 50_000_000 * RAD,
             dstGap: 20_000_000 * RAD,
             dstTtl: 12 hours,
