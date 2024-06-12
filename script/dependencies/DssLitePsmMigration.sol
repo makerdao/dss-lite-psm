@@ -58,7 +58,6 @@ interface DssPsmLike {
 
 interface DssLitePsmLike {
     function buf() external view returns (uint256);
-    function daiJoin() external view returns (address);
     function file(bytes32, uint256) external;
     function fill() external returns (uint256);
     function gem() external view returns (address);
