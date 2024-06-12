@@ -185,6 +185,8 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
 
     function testMigrationPhase1() public {
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
+        uint256 psrcTin = srcPsm.tin();
+        uint256 psrcTout = srcPsm.tout();
         uint256 psrcVatGem = dss.vat.gem(SRC_ILK, address(srcPsm));
         uint256 pdstVatGem = dss.vat.gem(DST_ILK, address(dstPsm));
 
@@ -202,17 +204,14 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.initAndMigrate, (dss, inst, migCfg)));
 
         // Sanity checks
-        {
-            uint256 psrcTin = srcPsm.tin();
-            uint256 psrcTout = srcPsm.tout();
-            assertEq(srcPsm.tin(), psrcTin, "after: invalid src tin update");
-            assertEq(srcPsm.tout(), psrcTout, "after: invalid src tout update");
-            assertEq(srcPsm.vow(), vow, "after: invalid src vow update");
-            assertEq(dstPsm.tin(), migCfg.dstTin, "after: invalid dst tin");
-            assertEq(dstPsm.tout(), migCfg.dstTout, "after: invalid dst tout");
-            assertEq(dstPsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
-            assertEq(dstPsm.vow(), vow, "after: invalid dst vow update");
-        }
+        assertEq(srcPsm.tin(), psrcTin, "after: unexpected src tin update");
+        assertEq(srcPsm.tout(), psrcTout, "after: unexpected src tout update");
+        assertEq(srcPsm.vow(), vow, "after: unexpected src vow update");
+
+        assertEq(dstPsm.tin(), migCfg.dstTin, "after: invalid dst tin");
+        assertEq(dstPsm.tout(), migCfg.dstTout, "after: invalid dst tout");
+        assertEq(dstPsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
+        assertEq(dstPsm.vow(), vow, "after: unexpected dst vow update");
 
         // ESM min threshold is properly set
         assertEq(esm.min(), migCfg.esmMin, "after: esm min not properly set");
@@ -275,11 +274,9 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
 
-        // New PSM has the expected amount of pre-minted Dai
+        // New PSM state is set correctly
         assertEq(dss.dai.balanceOf(address(dstPsm)), migCfg.dstBuf, "after: invalid dst psm dai balance");
-        // New PSM vat gem has not changed
         assertEq(dss.vat.gem(DST_ILK, address(dstPsm)), pdstVatGem, "after: unexpected dst vat gem change");
-        // New PSM pocket gem balance is properly set
         assertEq(_amtToWad(gem.balanceOf(address(pocket))), migCfg.dstWant, "after: invalid gem balance for dst pocket");
     }
 
