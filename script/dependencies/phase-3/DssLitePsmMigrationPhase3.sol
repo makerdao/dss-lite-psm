@@ -60,32 +60,37 @@ library DssLitePsmMigrationPhase3 {
         // 2. Migrate all funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(
             dss,
-            MigrationConfig({srcPsmKey: cfg.srcPsmKey, dstPsmKey: cfg.dstPsmKey, dstWant: srcInk, dstBuf: cfg.dstBuf})
+            MigrationConfig({
+                srcPsmKey: cfg.srcPsmKey,
+                dstPsmKey: cfg.dstPsmKey,
+                srcKeep: 0,
+                dstWant: srcInk
+            })
         );
 
         // 3. Update auto-line.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 3.1. Remove `src.psm` from AutoLine
-        autoLine.remIlk(res.src.ilk);
-        dss.vat.file(res.src.ilk, "line", 0);
+        // 3.1. Remove `srcPsm` from AutoLine
+        autoLine.remIlk(res.srcIlk);
+        dss.vat.file(res.srcIlk, "line", 0);
 
-        // 3.2. Update auto-line for `dst.psm`
-        autoLine.setIlk(res.dst.ilk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
-        autoLine.exec(res.dst.ilk);
+        // 3.2. Update auto-line for `dstPsm`
+        autoLine.setIlk(res.dstIlk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
+        autoLine.exec(res.dstIlk);
 
         // 4. Set the final params for both PSMs.
-        DssPsmLike(res.src.psm).file("tin", 0);
-        DssPsmLike(res.src.psm).file("tout", 0);
+        DssPsmLike(res.srcPsm).file("tin", 0);
+        DssPsmLike(res.srcPsm).file("tout", 0);
 
-        DssLitePsmLike(res.dst.psm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dst.psm).file("tout", cfg.dstTout);
-        DssLitePsmLike(res.dst.psm).file("buf", cfg.dstBuf);
+        DssLitePsmLike(res.dstPsm).file("tin", cfg.dstTin);
+        DssLitePsmLike(res.dstPsm).file("tout", cfg.dstTout);
+        DssLitePsmLike(res.dstPsm).file("buf", cfg.dstBuf);
 
-        // 5. Fill `dst.psm` so there is liquidity available immediately.
-        // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
-        if (DssLitePsmLike(res.dst.psm).rush() > 0) {
-            DssLitePsmLike(res.dst.psm).fill();
+        // 5. Fill `dstPsm` so there is liquidity available immediately.
+        // Notice: `dstPsm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
+        if (DssLitePsmLike(res.dstPsm).rush() > 0) {
+            DssLitePsmLike(res.dstPsm).fill();
         }
     }
 }
