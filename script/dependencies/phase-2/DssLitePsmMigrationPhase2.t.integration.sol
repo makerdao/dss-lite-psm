@@ -35,13 +35,15 @@ interface DssLitePsmLike {
     function buf() external view returns (uint256);
     function buyGem(address, uint256) external returns (uint256);
     function file(bytes32, uint256) external;
-    function fill() external;
+    function fill() external returns (uint256);
     function pocket() external view returns (address);
+    function rush() external view returns (uint256);
+    function sellGem(address, uint256) external returns (uint256);
     function tin() external view returns (uint256);
-    function tout() external view returns (uint256);
-    function trim() external;
-    function vow() external view returns (address);
     function to18ConversionFactor() external view returns (uint256);
+    function tout() external view returns (uint256);
+    function trim() external returns (uint256);
+    function vow() external view returns (address);
 }
 
 interface ProxyLike {
@@ -55,10 +57,6 @@ interface AutoLineLike {
 interface GemLike {
     function approve(address, uint256) external;
     function balanceOf(address) external view returns (uint256);
-}
-
-interface PauseLike {
-    function delay() external view returns (uint256);
 }
 
 contract MigrationCaller {
@@ -87,7 +85,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
 
     DssInstance dss;
-    PauseLike pause;
+    address pause;
     address vow;
     DssPsmLike srcPsm;
     address chief;
@@ -107,7 +105,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
 
         dss = MCD.loadFromChainlog(CHAINLOG);
 
-        pause = PauseLike(dss.chainlog.getAddress("MCD_PAUSE"));
+        pause = dss.chainlog.getAddress("MCD_PAUSE");
         vow = dss.chainlog.getAddress("MCD_VOW");
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
@@ -136,8 +134,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         gem.approve(inst.litePsm, type(uint256).max);
 
         mig1Cfg = DssLitePsmMigrationConfigPhase1({
-            esmMin: 300_000 * WAD,
-            gsmDelay: 16 hours,
             psmMomKey: PSM_MOM_KEY,
             dstPsmKey: DST_PSM_KEY,
             dstPocketKey: DST_POCKET_KEY,
@@ -160,7 +156,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         });
 
         mig2Cfg = DssLitePsmMigrationConfigPhase2({
-            gsmDelay: 48 hours,
             dstPsmKey: DST_PSM_KEY,
             dstTin: 0,
             dstTout: 0,
@@ -208,7 +203,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     /**
      * @dev `line` for `dstPsm` reaches the max value defined by phase 1.
      */
-    function testMigrationPhase2WhenDstLineIsMaxxed() public {
+    function testMigrationPhase2WhenDstLineIsMax() public {
         vm.startPrank(address(pauseProxy));
         dss.vat.file("Line", dss.vat.Line() + mig1Cfg.dstMaxLine);
         dss.vat.file(DST_ILK, "line", mig1Cfg.dstMaxLine);
@@ -220,7 +215,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     /**
      * @dev `dstPsm` has no debt.
      */
-    function testMigrationPhase2WhenDebtIsZero() public {
+    function testMigrationPhase2WhenDstArtIsZero() public {
         vm.startPrank(address(pauseProxy));
         // Need to set buf to 0 to be able to wipe all debt.
         dstPsm.file("buf", 0);
@@ -244,15 +239,19 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     /**
      * @dev `dstPsm` debt is maxxed out
      */
-    function testMigrationPhase2WhenDebtIsMaxxedOut() public {
+    function testMigrationPhase2WhenArtIsMaxxedOut() public {
         vm.startPrank(address(pauseProxy));
         dss.vat.file("Line", dss.vat.Line() + mig1Cfg.dstMaxLine);
         dss.vat.file(DST_ILK, "line", mig1Cfg.dstMaxLine);
-        dstPsm.file("buf", mig1Cfg.dstMaxLine / RAY);
         vm.stopPrank();
 
-        // Max out debt
-        dstPsm.fill();
+        gem.approve(address(dstPsm), type(uint256).max);
+        do {
+            if (dstPsm.rush() > 0) dstPsm.fill();
+            uint256 dstGemAmt = _wadToAmt(dss.dai.balanceOf(address(dstPsm)));
+            deal(address(gem), address(this), dstGemAmt);
+            dstPsm.sellGem(address(this), dstGemAmt);
+        } while (dstPsm.rush() > 0);
 
         // Sanity check
         (, uint256 pdstArt) = dss.vat.urns(DST_ILK, address(dstPsm));
@@ -287,17 +286,9 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         (uint256 psrcInk, uint256 psrcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
         uint256 psrcVatGem = dss.vat.gem(SRC_ILK, address(srcPsm));
         uint256 psrcGemBalance = gem.balanceOf(address(srcPsm.gemJoin()));
+        (uint256 pdstInk, uint256 pdstArt) = dss.vat.urns(DST_ILK, address(dstPsm));
         uint256 pdstVatGem = dss.vat.gem(DST_ILK, address(dstPsm));
         uint256 pdstGemBalance = gem.balanceOf(address(pocket));
-
-        // Pre-conditions
-        {
-            (uint256 psrcIlkArt,,, uint256 psrcLine,) = dss.vat.ilks(SRC_ILK);
-            assertGt(psrcIlkArt, 0, "before: src ilk Art is zero");
-            assertGt(psrcLine, 0, "before: src line is zero");
-            assertGt(psrcArt, 0, "before: src art is zero");
-            assertGt(psrcInk, 0, "before: src ink is zero");
-        }
 
         uint256 expectedMoveWad = _min(psrcInk, _min(mig2Cfg.dstWant, _subcap(psrcInk, mig2Cfg.srcKeep)));
 
@@ -315,9 +306,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         assertEq(dstPsm.buf(), mig2Cfg.dstBuf, "after: invalid dst buf");
         assertEq(dstPsm.vow(), vow, "after: unexpected dst vow update");
 
-        // GSM delay is properly set
-        assertEq(pause.delay(), mig2Cfg.gsmDelay, "after: gsm delay not properly set");
-
         // Old PSM state is set correctly
         {
             (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
@@ -325,7 +313,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
             assertGe(srcInk, mig2Cfg.srcKeep, "after: src ink is lower than src keep");
             assertEq(srcArt, psrcArt - expectedMoveWad, "after: src art is not decreased by the moved amount");
             assertEq(dss.vat.gem(SRC_ILK, address(srcPsm)), psrcVatGem, "after: unexpected src vat gem change");
-            // Old PSM pocket gem balance is properly updated
             assertEq(
                 _amtToWad(gem.balanceOf(address(srcPsm.gemJoin()))),
                 _amtToWad(psrcGemBalance) - expectedMoveWad,
@@ -342,6 +329,22 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
             assertEq(last, block.number, "after: AutoLine invalid last");
         }
 
+        // New PSM state is set correctly
+        {
+            // LitePSM ink is never modified
+            (uint256 dstInk, uint256 dstArt) = dss.vat.urns(DST_ILK, address(dstPsm));
+            assertEq(dstInk, pdstInk, "after: unexpected dst ink chagne");
+            // There might be extra `art` because of the calls to `fill`.
+            assertGe(dstArt, pdstArt + expectedMoveWad, "after: dst art is not increased at least by the moved amount");
+            assertEq(dss.dai.balanceOf(address(dstPsm)), mig2Cfg.dstBuf, "after: invalid dst psm dai balance");
+            assertEq(dss.vat.gem(DST_ILK, address(dstPsm)), pdstVatGem, "after: unexpected dst vat gem change");
+            assertEq(
+                _amtToWad(gem.balanceOf(address(pocket))),
+                _amtToWad(pdstGemBalance) + expectedMoveWad,
+                "after: invalid gem balance for dst pocket"
+            );
+        }
+
         // New PSM is properly configured on AutoLine
         {
             (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
@@ -351,15 +354,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
             assertEq(last, block.number, "after: AutoLine invalid last");
             assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
-
-        // New PSM state is set correctly
-        assertEq(dss.dai.balanceOf(address(dstPsm)), mig2Cfg.dstBuf, "after: invalid dst psm dai balance");
-        assertEq(dss.vat.gem(DST_ILK, address(dstPsm)), pdstVatGem, "after: unexpected dst vat gem change");
-        assertEq(
-            _amtToWad(gem.balanceOf(address(pocket))),
-            _amtToWad(pdstGemBalance) + expectedMoveWad,
-            "after: invalid gem balance for dst pocket"
-        );
     }
 
     function _min(uint256 x, uint256 y) internal pure returns (uint256 z) {
