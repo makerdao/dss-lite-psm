@@ -67,10 +67,6 @@ interface EsmLike {
     function min() external view returns (uint256);
 }
 
-interface PauseLike {
-    function delay() external view returns (uint256);
-}
-
 contract MigrationCaller {
     function initAndMigrate(
         DssInstance memory dss,
@@ -94,7 +90,7 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
     uint256 constant REG_CLASS_JOINLESS = 6; // New `IlkRegistry` class
 
     DssInstance dss;
-    PauseLike pause;
+    address pause;
     address vow;
     DssPsmLike srcPsm;
     address chief;
@@ -115,7 +111,7 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
 
         dss = MCD.loadFromChainlog(CHAINLOG);
 
-        pause = PauseLike(dss.chainlog.getAddress("MCD_PAUSE"));
+        pause = dss.chainlog.getAddress("MCD_PAUSE");
         vow = dss.chainlog.getAddress("MCD_VOW");
         reg = IlkRegistryLike(dss.chainlog.getAddress("ILK_REGISTRY"));
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
@@ -146,8 +142,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         gem.approve(inst.litePsm, type(uint256).max);
 
         migCfg = DssLitePsmMigrationConfigPhase1({
-            esmMin: 300_000 * WAD,
-            gsmDelay: 16 hours,
             psmMomKey: PSM_MOM_KEY,
             dstPsmKey: DST_PSM_KEY,
             dstPocketKey: DST_POCKET_KEY,
@@ -212,12 +206,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         assertEq(dstPsm.tout(), migCfg.dstTout, "after: invalid dst tout");
         assertEq(dstPsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
         assertEq(dstPsm.vow(), vow, "after: unexpected dst vow update");
-
-        // ESM min threshold is properly set
-        assertEq(esm.min(), migCfg.esmMin, "after: esm min not properly set");
-
-        // GSM delay is properly set
-        assertEq(pause.delay(), migCfg.gsmDelay, "after: gsm delay not properly set");
 
         // Old PSM state is set correctly
         {
