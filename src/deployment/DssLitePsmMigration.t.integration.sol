@@ -75,7 +75,7 @@ contract DssLitePsmMigrationTest is DssTest {
     ProxyLike pauseProxy;
     DssLitePsmInstance inst;
     DssLitePsmInitConfig initCfg;
-    MigrationConfig migCfg;
+    MigrationConfig defaultCfg;
     DssLitePsmLike dstPsm;
     GemLike gem;
     address pocket;
@@ -127,7 +127,7 @@ contract DssLitePsmMigrationTest is DssTest {
             gem: address(gem)
         });
 
-        migCfg = MigrationConfig({
+        defaultCfg = MigrationConfig({
             srcPsmKey: SRC_PSM_KEY,
             dstPsmKey: DST_PSM_KEY,
             srcKeep: 200_000_000 * WAD,
@@ -182,14 +182,44 @@ contract DssLitePsmMigrationTest is DssTest {
     }
 
     function testLitePsmMigration_Fuzz(uint256 srcKeep, uint256 dstWant) public {
+        MigrationConfig memory cfg = defaultCfg;
         // Remove potential rounding issues.
         uint256 to18CF = dstPsm.to18ConversionFactor();
-        srcKeep = (srcKeep / to18CF) * to18CF;
-        dstWant = (dstWant / to18CF) * to18CF;
-        // Overwrite config with the fuzz parameters
-        migCfg.srcKeep = srcKeep;
-        migCfg.dstWant = dstWant;
+        cfg.srcKeep = (srcKeep / to18CF) * to18CF;
+        cfg.dstWant = (dstWant / to18CF) * to18CF;
 
+        _checkLitePsmMigration(cfg);
+    }
+
+    function testRevertLitePsmMigrationWhenConfigParamsAreInvalid() public {
+        MigrationConfig memory cfg;
+
+        // Invalid `srcKeep`
+        cfg = defaultCfg;
+        cfg.srcKeep = 1_000_000 * WAD + 1;
+        // Since we are simulating a spell casting, we get the default error from pause proxy, however the actual reason
+        // is DssLitePsmMigration/src-keep-rounding-issue.
+        vm.expectRevert("ds-pause-delegatecall-error");
+        this._checkLitePsmMigration(cfg);
+
+        // Invalid `dstWant`
+        cfg = defaultCfg;
+        cfg.dstWant = 2_000_000 * WAD + 1;
+        // Since we are simulating a spell casting, we get the default error from pause proxy, however the actual reason
+        // is DssLitePsmMigration/dst-want-rounding-issue.
+        vm.expectRevert("ds-pause-delegatecall-error");
+        this._checkLitePsmMigration(cfg);
+
+        // Invalid ilk reuse
+        cfg = defaultCfg;
+        cfg.dstPsmKey = cfg.srcPsmKey;
+        // Since we are simulating a spell casting, we get the default error from pause proxy, however the actual reason
+        // is DssLitePsmMigration/src-psm-same-key-dst-psm.
+        vm.expectRevert("ds-pause-delegatecall-error");
+        this._checkLitePsmMigration(cfg);
+    }
+
+    function _checkLitePsmMigration(MigrationConfig memory cfg) public {
         TestSrcParams memory psrc;
         (psrc.ink, psrc.art) = dss.vat.urns(SRC_ILK, address(srcPsm));
         psrc.gemBalance = gem.balanceOf(srcPsm.gemJoin());
@@ -207,11 +237,11 @@ contract DssLitePsmMigrationTest is DssTest {
         ppp.vatSin = dss.vat.sin(address(pauseProxy));
 
         uint256 pglobalLine = dss.vat.Line();
-        uint256 expectedSap = _min(migCfg.dstWant, _subcap(psrc.ink, migCfg.srcKeep));
+        uint256 expectedSap = _min(cfg.dstWant, _subcap(psrc.ink, cfg.srcKeep));
 
         // Simulate a spell casting for migration
         vm.prank(pause);
-        bytes memory out = pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate, (dss, migCfg)));
+        bytes memory out = pauseProxy.exec(address(migCaller), abi.encodeCall(migCaller.migrate, (dss, cfg)));
         (MigrationResult memory res) = abi.decode(out, (MigrationResult));
 
         // Check results
