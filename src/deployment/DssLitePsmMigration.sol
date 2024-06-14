@@ -131,19 +131,19 @@ library DssLitePsmMigration {
         // --- Sanity checks ---
 
         require(cfg.srcPsmKey != cfg.dstPsmKey, "DssLitePsmMigration/src-psm-same-key-dst-psm");
+        uint256 to18ConversionFactor = DssLitePsmLike(dst.psm).to18ConversionFactor();
+        require(
+            cfg.dstWant == type(uint256).max || cfg.dstWant % to18ConversionFactor == 0,
+            "DssLitePsmMigration/dst-want-rounding-issue"
+        );
+        require(cfg.srcKeep % to18ConversionFactor == 0, "DssLitePsmMigration/src-keep-rounding-issue");
+
         require(src.ink >= src.art, "DssLitePsmMigration/src-ink-lower-than-art");
         require(dst.ilk != src.ilk, "DssLitePsmMigration/invalid-ilk-reuse");
         require(dst.gem == src.gem, "DssLitePsmMigration/dst-src-gem-mismatch");
         // We assume stability fees should be set to zero for both PSMs.
         require(src.rate == RAY, "DssLitePsmMigration/invalid-src-ilk-rate");
         require(dst.rate == RAY, "DssLitePsmMigration/invalid-dst-ilk-rate");
-
-        uint256 to18ConversionFactor = DssLitePsmLike(dst.psm).to18ConversionFactor();
-        require(
-            cfg.dstWant == type(uint256).max || cfg.dstWant % to18ConversionFactor == 0,
-            "DssLitePsmMigration/dst-want-rounding-issue"
-        );
-        require(cfg.srcKeep % to18ConversionFactor == 0, "DssLitePsmMigration/dst-want-rounding-issue");
 
         // --- Funds migration ---
 
