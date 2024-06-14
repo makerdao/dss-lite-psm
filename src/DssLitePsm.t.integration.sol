@@ -16,9 +16,9 @@
 pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams} from "script/dependencies/DssLitePsmDeploy.sol";
-import {DssLitePsmInit, DssLitePsmInitConfig} from "script/dependencies/DssLitePsmInit.sol";
-import {DssLitePsmInstance} from "script/dependencies/DssLitePsmInstance.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams} from "./deployment/DssLitePsmDeploy.sol";
+import {DssLitePsmInit, DssLitePsmInitConfig} from "./deployment/DssLitePsmInit.sol";
+import {DssLitePsmInstance} from "./deployment/DssLitePsmInstance.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 
 interface GemLike {

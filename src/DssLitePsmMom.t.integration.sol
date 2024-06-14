@@ -17,8 +17,8 @@ pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
 import {DssInstance, MCD} from "dss-test/MCD.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "script/dependencies/DssLitePsmDeploy.sol";
-import {DssLitePsmInitConfig, DssLitePsmInit} from "script/dependencies/DssLitePsmInit.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "./deployment/DssLitePsmDeploy.sol";
+import {DssLitePsmInitConfig, DssLitePsmInit} from "./deployment/DssLitePsmInit.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 
