@@ -232,7 +232,6 @@ contract DssLitePsmMigrationTest is DssTest {
         );
         assertEq(dss.vat.sin(address(pauseProxy)), ppp.vatSin, "after: unexpected pauseProxy vat sin change");
 
-
         // Old PSM state was properly updated
         (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
         assertEq(srcInk, psrc.ink - expectedSap, "after: invalid src ink");
