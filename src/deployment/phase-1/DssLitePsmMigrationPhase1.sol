@@ -73,7 +73,7 @@ library DssLitePsmMigrationPhase1 {
         DssLitePsmInstance memory inst,
         DssLitePsmMigrationConfigPhase1 memory cfg
     ) internal {
-        // 1. Initialize the new PSM,
+        // 1. Initialize the new PSM.
         DssLitePsmInit.init(
             dss,
             inst,
@@ -100,7 +100,7 @@ library DssLitePsmMigrationPhase1 {
         );
 
         // 3. Update auto-line.
-        // NOTICE: Setting auto-line parameters automatically resets time intervals.
+        // Notice: Setting auto-line parameters automatically resets time intervals.
         // Effectively, it allows `litePsm` `line` to increase faster than expected.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 

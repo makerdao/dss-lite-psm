@@ -108,7 +108,7 @@ library DssLitePsmInit {
 
         // 2. Initial `litePsm` setup
         // Set `ink` to the largest value that will not cause an overflow for `ink * spot`.
-        // NOTICE: `litePsm` assumes that:
+        // Notice: `litePsm` assumes that:
         //   a. `spotter.par == RAY`
         //   b. `vat.ilks[ilk].spot == RAY`
         int256 vink = int256(type(uint256).max / RAY);
@@ -116,7 +116,7 @@ library DssLitePsmInit {
         dss.vat.grab(cfg.ilk, inst.litePsm, inst.litePsm, address(0), vink, 0);
 
         // 3. Set `litePsm` config params.
-        // NOTICE: `buf`, `tin` and `tout` need to be set in the higher level migration scripts.
+        // Notice: `buf`, `tin` and `tout` need to be set in the higher level migration scripts.
         DssLitePsmLike(inst.litePsm).file("vow", dss.chainlog.getAddress("MCD_VOW"));
 
         // 4. Allow `MCD_PAUSE_PROXY` to swap with no fees on `litePsm`.

@@ -72,7 +72,7 @@ library DssLitePsmMigrationPhase2 {
         );
 
         /**
-         * NOTICE:
+         * Notice:
          * There is a potential Flash Loan™ scenario which could prevent the desired amount of collateral
          * (`cfg.srcKeep`) to remain in `srcPsm`.
          *
