@@ -187,14 +187,9 @@ library DssLitePsmMigration {
         // 8. Reset the previous params.
         dss.vat.file("Line", currentGlobalLine);
         dss.vat.file(dst.ilk, "line", dst.line);
-
-        // 9. Fill `dst.psm` with pre-minted Dai if needed.
         DssLitePsmLike(dst.psm).file("buf", dst.buf);
-        if (DssLitePsmLike(dst.psm).rush() > 0) {
-            DssLitePsmLike(dst.psm).fill();
-        }
 
-        // 10. Return the result params
+        // 9. Return the result params
         res.srcPsm = src.psm;
         res.srcIlk = src.ilk;
         res.dstPsm = dst.psm;
