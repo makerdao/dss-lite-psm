@@ -166,8 +166,8 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
             dstWant: type(uint256).max,
             srcPsmKey: SRC_PSM_KEY,
             srcKeep: 100_000_000 * WAD,
-            srcTin: 0.01 ether,
-            srcTout: 0.01 ether,
+            srcTin: 0.001 ether,
+            srcTout: 0.001 ether,
             srcMaxLine: 2_500_000_000 * RAD,
             srcGap: 100_000_000 * RAD,
             srcTtl: 12 hours
