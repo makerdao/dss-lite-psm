@@ -307,7 +307,7 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
      * @dev Performs the migration and the relevant checks.
      */
     function _checkMigrationPhase3() internal {
-        (uint256 psrcInk, ) = dss.vat.urns(SRC_ILK, address(srcPsm));
+        (uint256 psrcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
         uint256 psrcVatGem = dss.vat.gem(SRC_ILK, address(srcPsm));
         uint256 psrcGemBalance = gem.balanceOf(address(srcPsm.gemJoin()));
         (uint256 pdstInk, uint256 pdstArt) = dss.vat.urns(DST_ILK, address(dstPsm));

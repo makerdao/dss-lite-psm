@@ -22,12 +22,12 @@ import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLiteP
 
 struct DssLitePsmMigrationConfigPhase3 {
     bytes32 dstPsmKey;
-    uint256 dstTin;
-    uint256 dstTout;
-    uint256 dstBuf;
-    uint256 dstMaxLine;
-    uint256 dstGap;
-    uint256 dstTtl;
+    uint256 dstTin; // [wad] - 10**18 = 100%
+    uint256 dstTout; // [wad] - 10**18 = 100%
+    uint256 dstBuf; // [wad]
+    uint256 dstMaxLine; // [rad]
+    uint256 dstGap; // [rad]
+    uint256 dstTtl; // seconds
     bytes32 srcPsmKey;
 }
 
@@ -59,13 +59,7 @@ library DssLitePsmMigrationPhase3 {
 
         // 2. Migrate all funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(
-            dss,
-            MigrationConfig({
-                srcPsmKey: cfg.srcPsmKey,
-                dstPsmKey: cfg.dstPsmKey,
-                srcKeep: 0,
-                dstWant: srcInk
-            })
+            dss, MigrationConfig({srcPsmKey: cfg.srcPsmKey, dstPsmKey: cfg.dstPsmKey, srcKeep: 0, dstWant: srcInk})
         );
 
         // 3. Update auto-line.
