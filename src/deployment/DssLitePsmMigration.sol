@@ -73,11 +73,7 @@ interface GemJoinLike {
 }
 
 interface GemLike {
-    function allowance(address, address) external view returns (uint256);
     function approve(address, uint256) external;
-    function decimals() external view returns (uint256);
-    function name() external view returns (string memory);
-    function symbol() external view returns (string memory);
 }
 
 library DssLitePsmMigration {

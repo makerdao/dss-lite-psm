@@ -16,7 +16,6 @@
 pragma solidity ^0.8.16;
 
 import {DssInstance} from "dss-test/MCD.sol";
-import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
 import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLitePsmMigration.sol";
 
 struct DssLitePsmMigrationConfigPhase2 {
@@ -52,13 +51,7 @@ interface AutoLineLike {
     function setIlk(bytes32, uint256, uint256, uint256) external;
 }
 
-interface PauseLike {
-    function setDelay(uint256) external;
-}
-
 library DssLitePsmMigrationPhase2 {
-    uint256 internal constant RAY = 10 ** 27;
-
     function migrate(DssInstance memory dss, DssLitePsmMigrationConfigPhase2 memory cfg) internal {
         // 1. Migrate funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(

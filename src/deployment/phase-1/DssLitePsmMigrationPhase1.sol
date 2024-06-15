@@ -53,14 +53,6 @@ interface AutoLineLike {
     function setIlk(bytes32, uint256, uint256, uint256) external;
 }
 
-interface EsmLike {
-    function file(bytes32, uint256) external;
-}
-
-interface PauseLike {
-    function setDelay(uint256) external;
-}
-
 library DssLitePsmMigrationPhase1 {
     /**
      * @dev Initializes a LitePsm instance and performs the initial migration of funds.
