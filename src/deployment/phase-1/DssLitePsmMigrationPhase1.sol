@@ -96,21 +96,21 @@ library DssLitePsmMigrationPhase1 {
         // Effectively, it allows `litePsm` `line` to increase faster than expected.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
-        // 3.1. Update auto-line for `src.psm`
+        // 3.1. Update auto-line for `srcIlk`
         autoLine.setIlk(res.srcIlk, cfg.srcMaxLine, cfg.srcGap, cfg.srcTtl);
         autoLine.exec(res.srcIlk);
 
-        // 3.2. Update auto-line for `dst.psm`
+        // 3.2. Update auto-line for `dstIlk`
         autoLine.setIlk(res.dstIlk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
         autoLine.exec(res.dstIlk);
 
-        // 4. Set the final params for `dst.psm`.
+        // 4. Set the final params for `dstPsm`.
         DssLitePsmLike(res.dstPsm).file("tin", cfg.dstTin);
         DssLitePsmLike(res.dstPsm).file("tout", cfg.dstTout);
         DssLitePsmLike(res.dstPsm).file("buf", cfg.dstBuf);
 
-        // 5. Fill `dst.psm` so there is liquidity available immediately.
-        // Notice: `dst.psm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
+        // 5. Fill `dstPsm` so there is liquidity available immediately.
+        // Notice: `dstPsm.fill` must be called last because it is constrained by both `cfg.buf` and `cfg.maxLine`.
         if (DssLitePsmLike(res.dstPsm).rush() > 0) {
             DssLitePsmLike(res.dstPsm).fill();
         }
