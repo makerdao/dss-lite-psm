@@ -77,7 +77,7 @@ library DssLitePsmInit {
     /**
      * @dev Initializes a DssLitePsm instance.
      * @param dss The DSS instance.
-     * @param inst The DssLitePsm intance.
+     * @param inst The DssLitePsm instance.
      * @param cfg The init config.
      */
     function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) internal {
