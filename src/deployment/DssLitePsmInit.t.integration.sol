@@ -147,7 +147,7 @@ contract DssLitePsmInitTest is DssTest {
         {
             (uint256 pilkArt, uint256 prate, uint256 pspot, uint256 pline,) = dss.vat.ilks(ILK);
             (uint256 pink, uint256 part) = dss.vat.urns(ILK, inst.litePsm);
-            (uint256 pduty, ) = dss.jug.ilks(ILK);
+            (uint256 pduty,) = dss.jug.ilks(ILK);
             (address ppip, uint256 pmat) = dss.spotter.ilks(ILK);
             assertEq(pilkArt, 0, "before: ilk already initialized - Art is not zero");
             assertEq(prate, 0, "before: ilk already initialized - rate is not zero");
@@ -175,7 +175,7 @@ contract DssLitePsmInitTest is DssTest {
         // Sanity checks
         {
             (, uint256 rate, uint256 spot,,) = dss.vat.ilks(ILK);
-            (uint256 duty, ) = dss.jug.ilks(ILK);
+            (uint256 duty,) = dss.jug.ilks(ILK);
             (address _pip, uint256 mat) = dss.spotter.ilks(ILK);
 
             assertEq(rate, RAY, "after: invalid rate");

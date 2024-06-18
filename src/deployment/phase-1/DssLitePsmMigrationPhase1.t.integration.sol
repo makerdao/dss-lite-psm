@@ -205,7 +205,11 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by dst want");
             assertEq(srcArt, psrcArt - migCfg.dstWant, "after: src art is not decreased by dst want");
             assertEq(dss.vat.gem(SRC_ILK, address(srcPsm)), psrcVatGem, "after: unexpected src vat gem change");
-            assertEq(gem.balanceOf(srcPsm.gemJoin()), psrcGemBalance - _wadToAmt(migCfg.dstWant), "after: src gem-join balance is not decreased by dst want");
+            assertEq(
+                gem.balanceOf(srcPsm.gemJoin()),
+                psrcGemBalance - _wadToAmt(migCfg.dstWant),
+                "after: src gem-join balance is not decreased by dst want"
+            );
         }
 
         // Old PSM is properly configured on AutoLine

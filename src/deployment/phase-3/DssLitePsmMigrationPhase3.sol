@@ -59,7 +59,7 @@ library DssLitePsmMigrationPhase3 {
         autoLine.remIlk(res.srcIlk);
 
         // 2.2. Adjust global line accordingly.
-        (,,,uint256 srcLine,) = dss.vat.ilks(res.srcIlk);
+        (,,, uint256 srcLine,) = dss.vat.ilks(res.srcIlk);
         dss.vat.file(res.srcIlk, "line", 0);
         dss.vat.file("Line", dss.vat.Line() - srcLine);
 
