@@ -255,6 +255,23 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     }
 
     /**
+     * @dev `srcPsm` has exaclty `srcKeep` gems left
+     */
+    function testRevertMigrationPhase2WhenSrcInkEqualsSrcKeep() public {
+        (uint256 psrcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
+        uint256 buyWad = psrcInk - mig2Cfg.srcKeep;
+        deal(address(dss.dai), address(this), buyWad);
+        assertGe(dss.dai.balanceOf(address(this)), buyWad);
+        dss.dai.approve(address(srcPsm), buyWad);
+        srcPsm.buyGem(address(this), _wadToAmt(buyWad));
+
+        _checkMigrationPhase2();
+
+        (uint256 srcInk,) = dss.vat.urns(SRC_ILK, address(srcPsm));
+        assertEq(srcInk, mig2Cfg.srcKeep, "after: src ink is not equal to src keep");
+    }
+
+    /**
      * @dev The spell reverts if `srcInk` is lower than `srcKeep`.
      */
     function testRevertMigrationPhase2WhenSrcInkLowerThanSrcKeep_Fuzz(uint256 deficit) public {

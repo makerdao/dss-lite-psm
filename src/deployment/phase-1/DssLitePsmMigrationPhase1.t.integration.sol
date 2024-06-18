@@ -21,6 +21,7 @@ import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
 import {DssLitePsmMigrationPhase1, DssLitePsmMigrationConfigPhase1} from "./DssLitePsmMigrationPhase1.sol";
 
 interface DssPsmLike {
+    function gemJoin() external view returns (address);
     function tin() external view returns (uint256);
     function tout() external view returns (uint256);
     function vow() external view returns (address);
@@ -174,6 +175,7 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         uint256 psrcTin = srcPsm.tin();
         uint256 psrcTout = srcPsm.tout();
         uint256 psrcVatGem = dss.vat.gem(SRC_ILK, address(srcPsm));
+        uint256 psrcGemBalance = gem.balanceOf(srcPsm.gemJoin());
         uint256 pdstVatGem = dss.vat.gem(DST_ILK, address(dstPsm));
 
         // Pre-conditions
@@ -200,9 +202,10 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         // Old PSM state is set correctly
         {
             (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
-            assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by want");
-            assertEq(srcArt, psrcArt - migCfg.dstWant, "after: src art is not decreased by want");
+            assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by dst want");
+            assertEq(srcArt, psrcArt - migCfg.dstWant, "after: src art is not decreased by dst want");
             assertEq(dss.vat.gem(SRC_ILK, address(srcPsm)), psrcVatGem, "after: unexpected src vat gem change");
+            assertEq(gem.balanceOf(srcPsm.gemJoin()), psrcGemBalance - _wadToAmt(migCfg.dstWant), "after: src gem-join balance is not decreased by dst want");
         }
 
         // Old PSM is properly configured on AutoLine
@@ -212,6 +215,21 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             assertEq(gap, migCfg.srcGap, "after: AutoLine invalid gap");
             assertEq(ttl, uint48(migCfg.srcTtl), "after: AutoLine invalid ttl");
             assertEq(last, block.number, "after: AutoLine invalid last");
+        }
+
+        // New PSM state is set correctly
+        assertEq(dss.dai.balanceOf(address(dstPsm)), migCfg.dstBuf, "after: invalid dst psm dai balance");
+        assertEq(dss.vat.gem(DST_ILK, address(dstPsm)), pdstVatGem, "after: unexpected dst vat gem change");
+        assertEq(_amtToWad(gem.balanceOf(address(pocket))), migCfg.dstWant, "after: invalid gem balance for dst pocket");
+
+        // New PSM is properly configured on AutoLine
+        {
+            (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
+            assertEq(maxLine, migCfg.dstMaxLine, "after: AutoLine invalid maxLine");
+            assertEq(gap, migCfg.dstGap, "after: AutoLine invalid gap");
+            assertEq(ttl, uint48(migCfg.dstTtl), "after: AutoLine invalid ttl");
+            assertEq(last, block.number, "after: AutoLine invalid last");
+            assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
         }
 
         // New PSM info is added to IlkRegistry
@@ -241,24 +259,13 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         assertEq(dss.chainlog.getAddress(migCfg.psmMomKey), inst.mom, "after: `mom` not in chainlog");
         assertEq(dss.chainlog.getAddress(migCfg.dstPsmKey), inst.litePsm, "after: `dstPsm` not in chainlog");
         assertEq(dss.chainlog.getAddress(migCfg.dstPocketKey), pocket, "after: `pocket` not in chainlog");
-
-        // New PSM is properly configured on AutoLine
-        {
-            (uint256 maxLine, uint256 gap, uint48 ttl, uint256 last, uint256 lastInc) = autoLine.ilks(DST_ILK);
-            assertEq(maxLine, migCfg.dstMaxLine, "after: AutoLine invalid maxLine");
-            assertEq(gap, migCfg.dstGap, "after: AutoLine invalid gap");
-            assertEq(ttl, uint48(migCfg.dstTtl), "after: AutoLine invalid ttl");
-            assertEq(last, block.number, "after: AutoLine invalid last");
-            assertEq(lastInc, block.timestamp, "after: AutoLine invalid lastInc");
-        }
-
-        // New PSM state is set correctly
-        assertEq(dss.dai.balanceOf(address(dstPsm)), migCfg.dstBuf, "after: invalid dst psm dai balance");
-        assertEq(dss.vat.gem(DST_ILK, address(dstPsm)), pdstVatGem, "after: unexpected dst vat gem change");
-        assertEq(_amtToWad(gem.balanceOf(address(pocket))), migCfg.dstWant, "after: invalid gem balance for dst pocket");
     }
 
     function _amtToWad(uint256 amt) internal view returns (uint256) {
         return amt * dstPsm.to18ConversionFactor();
+    }
+
+    function _wadToAmt(uint256 wad) internal view returns (uint256) {
+        return wad / dstPsm.to18ConversionFactor();
     }
 }
