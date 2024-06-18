@@ -92,12 +92,12 @@ library DssLitePsmInit {
             GemLike(cfg.gem).allowance(cfg.pocket, inst.litePsm) == type(uint256).max,
             "DssLitePsmInit/invalid-pocket-allowance"
         );
+        require(uint256(PipLike(cfg.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
 
         // 1. Initialize the new ilk
         dss.vat.init(cfg.ilk);
         dss.jug.init(cfg.ilk);
         dss.spotter.file(cfg.ilk, "mat", 1 * RAY);
-        require(uint256(PipLike(cfg.pip).read()) == 1 * WAD, "DssLitePsmInit/invalid-pip-val");
         dss.spotter.file(cfg.ilk, "pip", cfg.pip);
         dss.spotter.poke(cfg.ilk);
 

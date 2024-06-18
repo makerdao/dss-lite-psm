@@ -145,12 +145,19 @@ contract DssLitePsmInitTest is DssTest {
     function testLitePsmInit() public {
         // Sanity check: initialization can only happen if the ilk has not been onboarded yet.
         {
-            (uint256 pilkArt,,, uint256 pline,) = dss.vat.ilks(ILK);
+            (uint256 pilkArt, uint256 prate, uint256 pspot, uint256 pline,) = dss.vat.ilks(ILK);
             (uint256 pink, uint256 part) = dss.vat.urns(ILK, inst.litePsm);
+            (uint256 pduty, ) = dss.jug.ilks(ILK);
+            (address ppip, uint256 pmat) = dss.spotter.ilks(ILK);
             assertEq(pilkArt, 0, "before: ilk already initialized - Art is not zero");
+            assertEq(prate, 0, "before: ilk already initialized - rate is not zero");
+            assertEq(pspot, 0, "before: ilk already initialized - spot is not zero");
             assertEq(pline, 0, "before: ilk already initialized - line is not zero");
             assertEq(part, 0, "before: ilk already initialized - art is not zero");
             assertEq(pink, 0, "before: ilk already initialized - ink is not zero");
+            assertEq(pduty, 0, "before: ilk already initialized - duty is not zero");
+            assertEq(ppip, address(0), "before: ilk already initialized - pip is not address(0)");
+            assertEq(pmat, 0, "before: ilk already initialized - mat is not zero");
         }
 
         // `litePsm`, `mom` and `pocket` are not present in Chainlog
@@ -166,12 +173,23 @@ contract DssLitePsmInitTest is DssTest {
         pauseProxy.exec(address(caller), abi.encodeCall(caller.init, (dss, inst, cfg)));
 
         // Sanity checks
-        assertEq(litePsm.vow(), vow, "after: invalid vow");
+        {
+            (, uint256 rate, uint256 spot,,) = dss.vat.ilks(ILK);
+            (uint256 duty, ) = dss.jug.ilks(ILK);
+            (address _pip, uint256 mat) = dss.spotter.ilks(ILK);
+
+            assertEq(rate, RAY, "after: invalid rate");
+            assertEq(spot, RAY, "after: invalid spot");
+            assertEq(duty, RAY, "after: invalid duty");
+            assertEq(_pip, pip, "after: invalid pip");
+            assertEq(mat, RAY, "after: invalid mat");
+        }
 
         // New PSM is properly setup
         (uint256 ink,) = dss.vat.urns(ILK, inst.litePsm);
         // Unlimited virtual ink is set properly
         assertEq(ink, type(uint256).max / RAY, "after: invalid ink");
+        assertEq(litePsm.vow(), vow, "after: invalid vow");
 
         // `mom` was properly set up
         assertEq(mom.authority(), chief, "after: `mom` authority not set");
@@ -180,28 +198,30 @@ contract DssLitePsmInitTest is DssTest {
         assertEq(litePsm.wards(inst.mom), 1, "after: `mom` not ward of `litePsm`");
 
         // PauseProxy is bud on `litePsm`
-        assertEq(litePsm.bud(address(pauseProxy)), 1, "after: `mom` not ward of `litePsm`");
+        assertEq(litePsm.bud(address(pauseProxy)), 1, "after: `pausePrxy` not bud of `litePsm`");
 
         // `litePsm` info is added to IlkRegistry
-        (
-            string memory name,
-            string memory symbol,
-            uint256 _class,
-            uint256 decimals,
-            address _gem,
-            address _pip,
-            address gemJoin,
-            address clip
-        ) = reg.info(ILK);
+        {
+            (
+                string memory name,
+                string memory symbol,
+                uint256 _class,
+                uint256 decimals,
+                address _gem,
+                address _pip,
+                address gemJoin,
+                address clip
+            ) = reg.info(ILK);
 
-        assertEq(name, gem.name(), "after: reg name mismatch");
-        assertEq(symbol, gem.symbol(), "after: reg symbol mismatch");
-        assertEq(_class, REG_CLASS_JOINLESS, "after: reg class mismatch");
-        assertEq(decimals, gem.decimals(), "after: reg dec mismatch");
-        assertEq(_gem, address(gem), "after: reg gem mismatch");
-        assertEq(_pip, pip, "after: reg pip mismatch");
-        assertEq(gemJoin, address(0), "after: invalid reg gemJoin");
-        assertEq(clip, address(0), "after: invalid reg xlip");
+            assertEq(name, gem.name(), "after: reg name mismatch");
+            assertEq(symbol, gem.symbol(), "after: reg symbol mismatch");
+            assertEq(_class, REG_CLASS_JOINLESS, "after: reg class mismatch");
+            assertEq(decimals, gem.decimals(), "after: reg dec mismatch");
+            assertEq(_gem, address(gem), "after: reg gem mismatch");
+            assertEq(_pip, pip, "after: reg pip mismatch");
+            assertEq(gemJoin, address(0), "after: invalid reg gemJoin");
+            assertEq(clip, address(0), "after: invalid reg xlip");
+        }
 
         // `litePsm`, `mom` and `pocket` are present in Chainlog
         assertEq(dss.chainlog.getAddress(cfg.psmKey), inst.litePsm, "after: `litePsm` not in chainlog");

@@ -20,20 +20,18 @@ import {DssLitePsmMigration, MigrationConfig, MigrationResult} from "../DssLiteP
 
 struct DssLitePsmMigrationConfigPhase2 {
     bytes32 dstPsmKey;
-    uint256 dstTin; // [wad] - 10**18 = 100%
-    uint256 dstTout; // [wad] - 10**18 = 100%
     uint256 dstBuf; // [wad]
     uint256 dstMaxLine; // [rad]
     uint256 dstGap; // [rad]
     uint256 dstTtl; // [seconds]
     uint256 dstWant; // [wad]
     bytes32 srcPsmKey;
-    uint256 srcKeep;
     uint256 srcTin; // [wad] - 10**18 = 100%
     uint256 srcTout; // [wad] - 10**18 = 100%
     uint256 srcMaxLine; // [rad]
     uint256 srcGap; // [rad]
     uint256 srcTtl; // [seconds]
+    uint256 srcKeep; // [wad]
 }
 
 interface DssPsmLike {
@@ -53,6 +51,35 @@ interface AutoLineLike {
 
 library DssLitePsmMigrationPhase2 {
     function migrate(DssInstance memory dss, DssLitePsmMigrationConfigPhase2 memory cfg) internal {
+        /**
+         * Notice:
+         * There is a potential Flash Loan™ scenario where an attacker could:
+         *
+         *   1. Flash loan Dai.
+         *   2. Sell Dai into `srcPm` to leave only `srcKeep` there.
+         *   3. Cast the spell - effectively nothing will be migrated because of the `srcKeep` constraint.
+         *   4. Sell the gems obtained in step 2 back into `srcPsm`.
+         *
+         * As a result, nothing would be migrated. To prevent that, we enforce that `srcTin > 0`, so there is a fee to
+         * be paid in step 4 above, which would disincentivize the attack.
+         */
+        require(cfg.srcTin > 0, "DssLitePsmMigrationConfigPhase2/src-tin-is-zero");
+
+        /**
+         * Notice:
+         * There is a second potential Flash Loan™ scenario where anyone could:
+         *
+         *   1. Flash loan Dai.
+         *   2. Sell Dai into `srcPm` to leave it empty.
+         *   3. Sell the gems obtained in step 2 into `dstPsm`.
+         *
+         * The outcome of this would be that anyone could force a full migration right after phase 2.
+         *
+         * To prevent that, we enforce that `srcTout > 0`, so there is a fee to be paid in step 3 above, which would
+         * disincentivize the attack.
+         */
+        require(cfg.srcTout > 0, "DssLitePsmMigrationConfigPhase2/src-tout-is-zero");
+
         // 1. Migrate funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(
             dss,
@@ -66,7 +93,7 @@ library DssLitePsmMigrationPhase2 {
 
         /**
          * Notice:
-         * There is a potential Flash Loan™ scenario which could prevent the desired amount of collateral
+         * There is another potential Flash Loan™ scenario which could prevent the desired amount of collateral
          * (`cfg.srcKeep`) to remain in `srcPsm`.
          *
          * For any amount `ink` that exists in `srcPsm`, the attacker could:
@@ -83,7 +110,7 @@ library DssLitePsmMigrationPhase2 {
          * and actually checking if the desired amount of collateral remains in `srcPsm`.
          *
          * Even if the spell reverts because `srcInk` naturally became too low by the time of casting, the Maker
-         * community could replenish `srcPsm` and try to cast the spell again right the way so it does not fail.
+         * community could replenish `srcPsm` and try to cast the spell again right away so it does not fail.
          */
         (uint256 srcInk,) = dss.vat.urns(res.srcIlk, res.srcPsm);
         require(srcInk >= cfg.srcKeep, "DssLitePsmMigrationPhase2/remaining-ink-too-low");
@@ -96,6 +123,8 @@ library DssLitePsmMigrationPhase2 {
         autoLine.exec(res.srcIlk);
 
         // 2.2. Update auto-line for `dstIlk`
+        // Notice: Setting auto-line parameters automatically resets time intervals.
+        // Effectively, it allows `litePsm` `line` to increase faster than expected.
         autoLine.setIlk(res.dstIlk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
         autoLine.exec(res.dstIlk);
 
@@ -103,8 +132,6 @@ library DssLitePsmMigrationPhase2 {
         DssPsmLike(res.srcPsm).file("tin", cfg.srcTin);
         DssPsmLike(res.srcPsm).file("tout", cfg.srcTout);
 
-        DssLitePsmLike(res.dstPsm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dstPsm).file("tout", cfg.dstTout);
         DssLitePsmLike(res.dstPsm).file("buf", cfg.dstBuf);
 
         // 4. Fill `dstPsm` so there is liquidity available immediately.

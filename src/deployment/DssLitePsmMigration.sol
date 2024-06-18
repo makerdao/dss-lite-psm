@@ -145,11 +145,9 @@ library DssLitePsmMigration {
 
         // 0. Define the base parameters for the migration.
         // The actual amount to move is constrained by both `dstWant` and `srcKeep`.
-        uint256 move = _min(cfg.dstWant, _subcap(src.ink, cfg.srcKeep));
-        // Ensure it does not try to migrate more than the existing collateral.
-        uint256 mink = _min(src.ink, move);
+        uint256 mink = _min(cfg.dstWant, _subcap(src.ink, cfg.srcKeep));
         // Ensure it does not try to erase more than the existing debt.
-        uint256 mart = _min(src.art, move);
+        uint256 mart = _min(src.art, mink);
 
         // 1. Grab the collateral from `src.psm` into the executing contract.
         dss.vat.grab(src.ilk, src.psm, address(this), address(this), -_int256(mink), -_int256(mart));

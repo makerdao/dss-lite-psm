@@ -18,8 +18,6 @@ pragma solidity ^0.8.16;
 import "dss-test/DssTest.sol";
 import {DssLitePsmDeploy, DssLitePsmDeployParams} from "../DssLitePsmDeploy.sol";
 import {DssLitePsmInstance} from "../DssLitePsmInstance.sol";
-import {DssLitePsmInit, DssLitePsmInitConfig} from "../DssLitePsmInit.sol";
-import {DssLitePsmMigration} from "../DssLitePsmMigration.sol";
 import {DssLitePsmMigrationPhase1, DssLitePsmMigrationConfigPhase1} from "../phase-1/DssLitePsmMigrationPhase1.sol";
 import {DssLitePsmMigrationPhase2, DssLitePsmMigrationConfigPhase2} from "./DssLitePsmMigrationPhase2.sol";
 
@@ -141,36 +139,32 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
             dstIlk: DST_ILK,
             dstGem: address(gem),
             dstPocket: pocket,
-            dstTin: 0,
-            dstTout: 0,
             dstBuf: 20_000_000 * WAD,
             dstMaxLine: 50_000_000 * RAD,
             dstGap: 20_000_000 * RAD,
             dstTtl: 12 hours,
             dstWant: 10_000_000 * WAD,
             srcPsmKey: SRC_PSM_KEY,
-            srcKeep: 0 * WAD,
             srcMaxLine: 10_000_000_000 * RAD,
-            srcGap: 350_000_000 * RAD,
-            srcTtl: 12 hours
+            srcGap: 380_000_000 * RAD,
+            srcTtl: 12 hours,
+            srcKeep: 100_000_000 * WAD
         });
 
         mig2Cfg = DssLitePsmMigrationConfigPhase2({
             dstPsmKey: DST_PSM_KEY,
-            dstTin: 0,
-            dstTout: 0,
             dstBuf: 300_000_000 * WAD,
             dstMaxLine: 7_500_000_000 * RAD,
             dstGap: 300_000_000 * RAD,
             dstTtl: 12 hours,
             dstWant: type(uint256).max,
             srcPsmKey: SRC_PSM_KEY,
-            srcKeep: 100_000_000 * WAD,
             srcTin: 0.001 ether,
             srcTout: 0.001 ether,
             srcMaxLine: 2_500_000_000 * RAD,
             srcGap: 100_000_000 * RAD,
-            srcTtl: 12 hours
+            srcTtl: 12 hours,
+            srcKeep: 100_000_000 * WAD
         });
 
         vm.label(CHAINLOG, "Chainlog");
@@ -197,7 +191,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
      * @dev No state change happens after migration phase 1.
      */
     function testMigrationPhase2BaseCase() public {
-        this._checkMigrationPhase2();
+        _checkMigrationPhase2();
     }
 
     /**
@@ -239,7 +233,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
     /**
      * @dev `dstPsm` debt is maxxed out
      */
-    function testMigrationPhase2WhenArtIsMaxxedOut() public {
+    function testMigrationPhase2WhenDstArtIsMaxxedOut() public {
         vm.startPrank(address(pauseProxy));
         dss.vat.file("Line", dss.vat.Line() + mig1Cfg.dstMaxLine);
         dss.vat.file(DST_ILK, "line", mig1Cfg.dstMaxLine);
@@ -301,8 +295,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         assertEq(srcPsm.tout(), mig2Cfg.srcTout, "after: invalid src tout");
         assertEq(srcPsm.vow(), vow, "after: unexpected src vow update");
 
-        assertEq(dstPsm.tin(), mig2Cfg.dstTin, "after: invalid dst tin");
-        assertEq(dstPsm.tout(), mig2Cfg.dstTout, "after: invalid dst tout");
         assertEq(dstPsm.buf(), mig2Cfg.dstBuf, "after: invalid dst buf");
         assertEq(dstPsm.vow(), vow, "after: unexpected dst vow update");
 

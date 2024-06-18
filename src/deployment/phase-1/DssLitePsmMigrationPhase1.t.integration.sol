@@ -63,10 +63,6 @@ interface GemLike {
     function decimals() external view returns (uint8);
 }
 
-interface EsmLike {
-    function min() external view returns (uint256);
-}
-
 contract MigrationCaller {
     function initAndMigrate(
         DssInstance memory dss,
@@ -97,7 +93,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
     IlkRegistryLike reg;
     ProxyLike pauseProxy;
     AutoLineLike autoLine;
-    EsmLike esm;
     DssLitePsmInstance inst;
     DssLitePsmLike dstPsm;
     GemLike gem;
@@ -117,7 +112,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         chief = dss.chainlog.getAddress("MCD_ADM");
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
-        esm = EsmLike(dss.chainlog.getAddress("MCD_ESM"));
         srcPsm = DssPsmLike(dss.chainlog.getAddress(SRC_PSM_KEY));
         gem = GemLike(dss.chainlog.getAddress(GEM_KEY));
         pocket = makeAddr("Pocket");
@@ -149,18 +143,16 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
             dstIlk: DST_ILK,
             dstGem: address(gem),
             dstPocket: pocket,
-            dstTin: 0,
-            dstTout: 0,
             dstBuf: 20_000_000 * WAD,
             dstMaxLine: 50_000_000 * RAD,
             dstGap: 20_000_000 * RAD,
             dstTtl: 12 hours,
             dstWant: 10_000_000 * WAD,
             srcPsmKey: SRC_PSM_KEY,
-            srcKeep: 0 * WAD,
             srcMaxLine: 10_000_000_000 * RAD,
-            srcGap: 350_000_000 * RAD,
-            srcTtl: 12 hours
+            srcGap: 380_000_000 * RAD,
+            srcTtl: 12 hours,
+            srcKeep: 100_000_000 * WAD
         });
 
         vm.label(CHAINLOG, "Chainlog");
@@ -202,8 +194,6 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         assertEq(srcPsm.tout(), psrcTout, "after: unexpected src tout update");
         assertEq(srcPsm.vow(), vow, "after: unexpected src vow update");
 
-        assertEq(dstPsm.tin(), migCfg.dstTin, "after: invalid dst tin");
-        assertEq(dstPsm.tout(), migCfg.dstTout, "after: invalid dst tout");
         assertEq(dstPsm.buf(), migCfg.dstBuf, "after: invalid dst buf");
         assertEq(dstPsm.vow(), vow, "after: unexpected dst vow update");
 
@@ -211,7 +201,7 @@ contract DssLitePsmMigrationPhase1Test is DssTest {
         {
             (uint256 srcInk, uint256 srcArt) = dss.vat.urns(SRC_ILK, address(srcPsm));
             assertEq(srcInk, psrcInk - migCfg.dstWant, "after: src ink is not decreased by want");
-            assertEq(srcArt, psrcArt - migCfg.dstWant, "after: src ink is not decreased by want");
+            assertEq(srcArt, psrcArt - migCfg.dstWant, "after: src art is not decreased by want");
             assertEq(dss.vat.gem(SRC_ILK, address(srcPsm)), psrcVatGem, "after: unexpected src vat gem change");
         }
 

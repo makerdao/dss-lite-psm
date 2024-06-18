@@ -28,18 +28,16 @@ struct DssLitePsmMigrationConfigPhase1 {
     bytes32 dstIlk;
     address dstGem;
     address dstPocket;
-    uint256 dstTin; // [wad] - 10**18 = 100%
-    uint256 dstTout; // [wad] - 10**18 = 100%
     uint256 dstBuf; // [wad]
     uint256 dstMaxLine; // [rad]
     uint256 dstGap; // [rad]
     uint256 dstTtl; // [seconds]
     uint256 dstWant; // [wad]
     bytes32 srcPsmKey;
-    uint256 srcKeep; // [wad]
     uint256 srcMaxLine; // [rad]
     uint256 srcGap; // [rad]
     uint256 srcTtl; // [seconds]
+    uint256 srcKeep; // [wad]
 }
 
 interface DssLitePsmLike {
@@ -92,8 +90,6 @@ library DssLitePsmMigrationPhase1 {
         );
 
         // 3. Update auto-line.
-        // Notice: Setting auto-line parameters automatically resets time intervals.
-        // Effectively, it allows `litePsm` `line` to increase faster than expected.
         AutoLineLike autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
 
         // 3.1. Update auto-line for `srcIlk`
@@ -101,12 +97,12 @@ library DssLitePsmMigrationPhase1 {
         autoLine.exec(res.srcIlk);
 
         // 3.2. Update auto-line for `dstIlk`
+        // Notice: Setting auto-line parameters automatically resets time intervals.
+        // Effectively, it allows `litePsm` `line` to increase faster than expected.
         autoLine.setIlk(res.dstIlk, cfg.dstMaxLine, cfg.dstGap, cfg.dstTtl);
         autoLine.exec(res.dstIlk);
 
         // 4. Set the final params for `dstPsm`.
-        DssLitePsmLike(res.dstPsm).file("tin", cfg.dstTin);
-        DssLitePsmLike(res.dstPsm).file("tout", cfg.dstTout);
         DssLitePsmLike(res.dstPsm).file("buf", cfg.dstBuf);
 
         // 5. Fill `dstPsm` so there is liquidity available immediately.

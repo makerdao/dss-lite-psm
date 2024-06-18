@@ -189,18 +189,12 @@ abstract contract DssLitePsmBaseTest is DssTest {
         );
     }
 
-    function testTollMethods_Fuzz(address sender) public {
-        vm.assume(sender != address(0) && litePsm.bud(sender) == 0);
-
-        deal(address(dss.dai), sender, 1);
-        vm.expectRevert("DssLitePsm/not-whitelisted");
-        vm.prank(sender);
-        litePsm.buyGemNoFee(sender, 1);
-
-        deal(address(gem), sender, 1);
-        vm.expectRevert("DssLitePsm/not-whitelisted");
-        vm.prank(sender);
-        litePsm.sellGemNoFee(sender, 1);
+    function testTollMethods() public {
+        checkModifier(
+            address(litePsm),
+            "DssLitePsm/not-whitelisted",
+            [DssLitePsm.buyGemNoFee.selector, DssLitePsm.sellGemNoFee.selector]
+        );
     }
 
     function testFile() public {
