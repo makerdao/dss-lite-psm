@@ -52,8 +52,8 @@ struct DstPsm {
 }
 
 interface DssPsmLike {
-    function ilk() external view returns (bytes32);
     function gemJoin() external view returns (address);
+    function ilk() external view returns (bytes32);
 }
 
 interface DssLitePsmLike {

@@ -190,15 +190,13 @@ contract DssLitePsmInitTest is DssTest {
         // Unlimited virtual ink is set properly
         assertEq(ink, type(uint256).max / RAY, "after: invalid ink");
         assertEq(litePsm.vow(), vow, "after: invalid vow");
-
-        // `mom` was properly set up
-        assertEq(mom.authority(), chief, "after: `mom` authority not set");
-
+        // PauseProxy is bud on `litePsm`
+        assertEq(litePsm.bud(address(pauseProxy)), 1, "after: `pauseProxy` not bud of `litePsm`");
         // `mom` is ward on `litePsm`
         assertEq(litePsm.wards(inst.mom), 1, "after: `mom` not ward of `litePsm`");
 
-        // PauseProxy is bud on `litePsm`
-        assertEq(litePsm.bud(address(pauseProxy)), 1, "after: `pausePrxy` not bud of `litePsm`");
+        // Mom is properly set up
+        assertEq(mom.authority(), chief, "after: `mom` authority not set");
 
         // `litePsm` info is added to IlkRegistry
         {

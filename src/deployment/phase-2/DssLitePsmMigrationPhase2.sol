@@ -50,6 +50,11 @@ interface AutoLineLike {
 }
 
 library DssLitePsmMigrationPhase2 {
+    /**
+     * @dev Performs the major migration of funds.
+     * @param dss The MCD instance.
+     * @param cfg The migration config params.
+     */
     function migrate(DssInstance memory dss, DssLitePsmMigrationConfigPhase2 memory cfg) internal {
         /**
          * Notice:

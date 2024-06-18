@@ -45,6 +45,11 @@ interface AutoLineLike {
 }
 
 library DssLitePsmMigrationPhase3 {
+    /**
+     * @dev Performs the final migration of funds.
+     * @param dss The MCD instance.
+     * @param cfg The migration config params.
+     */
     function migrate(DssInstance memory dss, DssLitePsmMigrationConfigPhase3 memory cfg) internal {
         // 1. Migrate all funds to the new PSM.
         MigrationResult memory res = DssLitePsmMigration.migrate(
