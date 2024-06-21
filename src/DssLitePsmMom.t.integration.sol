@@ -17,8 +17,8 @@ pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
 import {DssInstance, MCD} from "dss-test/MCD.sol";
-import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "script/dependencies/DssLitePsmDeploy.sol";
-import {DssLitePsmInitConfig, DssLitePsmInit} from "script/dependencies/DssLitePsmInit.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams, DssLitePsmInstance} from "./deployment/DssLitePsmDeploy.sol";
+import {DssLitePsmInitConfig, DssLitePsmInit} from "./deployment/DssLitePsmInit.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 import {DssLitePsmMom} from "src/DssLitePsmMom.sol";
 
@@ -42,15 +42,15 @@ contract InitCaller {
 
 contract DssLitePsmMomTest is DssTest {
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
-    bytes32 constant DST_ILK = "LITE-PSM-USDC-A";
+    bytes32 constant ILK = "LITE-PSM-USDC-A";
     bytes32 constant PSM_MOM_KEY = "MCD_LITE_PSM_MOM";
-    bytes32 constant DST_PSM_KEY = "MCD_LITE_PSM_USDC_A";
-    bytes32 constant DST_POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
-    bytes32 constant SRC_PSM_KEY = "MCD_PSM_USDC_A";
+    bytes32 constant PSM_KEY = "MCD_LITE_PSM_USDC_A";
+    bytes32 constant POCKET_KEY = "MCD_POCKET_LITE_PSM_USDC_A";
 
     DssLitePsm litePsm;
     GemLike gem;
     address pocket;
+    address pip;
     DssLitePsmMom mom;
     ProxyLike pauseProxy;
     address pause;
@@ -70,6 +70,7 @@ contract DssLitePsmMomTest is DssTest {
         pause = dss.chainlog.getAddress("MCD_PAUSE");
         gem = GemLike(dss.chainlog.getAddress("USDC"));
         pocket = makeAddr("Pocket");
+        pip = dss.chainlog.getAddress("PIP_USDC");
 
         caller = new InitCaller();
 
@@ -77,7 +78,7 @@ contract DssLitePsmMomTest is DssTest {
             DssLitePsmDeployParams({
                 deployer: address(this),
                 owner: address(pauseProxy),
-                ilk: DST_ILK,
+                ilk: ILK,
                 gem: address(gem),
                 daiJoin: address(dss.daiJoin),
                 pocket: pocket
@@ -91,17 +92,13 @@ contract DssLitePsmMomTest is DssTest {
         gem.approve(inst.litePsm, type(uint256).max);
 
         cfg = DssLitePsmInitConfig({
-            srcPsmKey: SRC_PSM_KEY,
-            dstPsmKey: DST_PSM_KEY,
+            psmKey: PSM_KEY,
             psmMomKey: PSM_MOM_KEY,
-            dstPocketKey: DST_POCKET_KEY,
-            pocket: pocket,
-            buf: 50_000_000 * WAD,
-            tin: 0,
-            tout: 0,
-            maxLine: 1_000_000_000 * RAD,
-            gap: 50_000_000 * RAD,
-            ttl: 8 hours
+            pocketKey: POCKET_KEY,
+            pip: pip,
+            ilk: ILK,
+            gem: address(gem),
+            pocket: pocket
         });
 
         vm.label(CHAINLOG, "Chainlog");

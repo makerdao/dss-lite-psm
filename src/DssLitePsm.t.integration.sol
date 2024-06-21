@@ -16,6 +16,9 @@
 pragma solidity ^0.8.16;
 
 import "dss-test/DssTest.sol";
+import {DssLitePsmDeploy, DssLitePsmDeployParams} from "./deployment/DssLitePsmDeploy.sol";
+import {DssLitePsmInit, DssLitePsmInitConfig} from "./deployment/DssLitePsmInit.sol";
+import {DssLitePsmInstance} from "./deployment/DssLitePsmInstance.sol";
 import {DssLitePsm} from "src/DssLitePsm.sol";
 
 interface GemLike {
@@ -39,9 +42,19 @@ interface GemJoinViewOnlyLike {
     function wards(address) external view returns (uint256);
 }
 
+interface ProxyLike {
+    function exec(address usr, bytes memory fax) external returns (bytes memory out);
+}
+
+contract InitCaller {
+    function init(DssInstance memory dss, DssLitePsmInstance memory inst, DssLitePsmInitConfig memory cfg) external {
+        DssLitePsmInit.init(dss, inst, cfg);
+    }
+}
+
 abstract contract DssLitePsmBaseTest is DssTest {
     function _ilk() internal view virtual returns (bytes32);
-    function _setUpGem() internal virtual returns (address);
+    function _setUpGem() internal virtual returns (GemLike, address);
 
     address constant CHAINLOG = 0xdA0Ab1e0017DEbCd72Be8599041a2aa3bA7e740F;
 
@@ -49,36 +62,85 @@ abstract contract DssLitePsmBaseTest is DssTest {
     DssInstance dss;
     AutoLineLike autoLine;
     GemLike gem;
+    address pip;
     address pocket;
     DssLitePsm litePsm;
     uint256 buf;
+    address pause;
+    ProxyLike pauseProxy;
+    InitCaller caller;
 
     function setUp() public {
         vm.createSelectFork("mainnet");
         dss = MCD.loadFromChainlog(CHAINLOG);
-        MCD.giveAdminAccess(dss);
-
+        pause = dss.chainlog.getAddress("MCD_PAUSE");
+        pauseProxy = ProxyLike(dss.chainlog.getAddress("MCD_PAUSE_PROXY"));
         autoLine = AutoLineLike(dss.chainlog.getAddress("MCD_IAM_AUTO_LINE"));
         GodMode.setWard(address(autoLine), address(this), 1);
+        MCD.giveAdminAccess(dss);
+
+        caller = new InitCaller();
 
         // From concrete test implementations
         ilk = _ilk();
-        gem = GemLike(_setUpGem());
-
+        (gem, pip) = _setUpGem();
         pocket = makeAddr("Pocket");
-        litePsm = new DssLitePsm(ilk, address(gem), address(dss.daiJoin), pocket);
+
+        DssLitePsmInstance memory inst = DssLitePsmDeploy.deploy(
+            DssLitePsmDeployParams({
+                deployer: address(this),
+                owner: address(pauseProxy),
+                ilk: ilk,
+                gem: address(gem),
+                daiJoin: address(dss.daiJoin),
+                pocket: pocket
+            })
+        );
+
+        litePsm = DssLitePsm(inst.litePsm);
         // Allow litePsm to spend `gem` on behalf of `pocket`.
         vm.prank(pocket);
         gem.approve(address(litePsm), type(uint256).max);
 
-        MCD.initIlk(dss, ilk);
-        uint256 dline = 100_000_000 * RAD;
-        dss.vat.file("Line", dss.vat.Line() + dline);
-        dss.vat.file(ilk, "line", dline);
+        // Simulate a spell casting
+        vm.prank(pause);
+        pauseProxy.exec(
+            address(caller),
+            abi.encodeCall(
+                caller.init,
+                (
+                    dss,
+                    inst,
+                    DssLitePsmInitConfig({
+                        psmKey: ScriptTools.stringToBytes32(
+                            string(abi.encodePacked("MCD_", ScriptTools.ilkToChainlogFormat(ilk)))
+                        ),
+                        pocketKey: ScriptTools.stringToBytes32(
+                            string(abi.encodePacked("MCD_POCKET_", ScriptTools.ilkToChainlogFormat(ilk)))
+                        ),
+                        psmMomKey: "PSM_MOM",
+                        pip: pip,
+                        ilk: ilk,
+                        gem: address(gem),
+                        pocket: pocket
+                    })
+                )
+            )
+        );
 
-        // Grants 1T virtual gem collateral
-        dss.vat.slip(ilk, address(litePsm), _int256(1_000_000_000_000 * WAD));
-        dss.vat.grab(ilk, address(litePsm), address(litePsm), address(0), _int256(1_000_000_000_000 * WAD), 0);
+        // The init script does not cover setting `buf` or `line` parameters.
+        vm.startPrank(address(pauseProxy));
+        {
+            buf = 10_000_000 * WAD;
+            litePsm.file("buf", buf);
+            uint256 dline = 100_000_000 * RAD;
+            dss.vat.file("Line", dss.vat.Line() + dline);
+            dss.vat.file(ilk, "line", dline);
+
+            // Grants permission to the test contract
+            litePsm.rely(address(this));
+        }
+        vm.stopPrank();
 
         // Mints 100_000_000 gem into the test contract.
         GodMode.setBalance(address(gem), address(this), _wadToAmt(100_000_000 * WAD));
@@ -87,16 +149,6 @@ abstract contract DssLitePsmBaseTest is DssTest {
         // Mints 100_000_000 Dai into the test contract.
         GodMode.setBalance(dss.dai, address(this), 100_000_000 * WAD);
         dss.dai.approve(address(litePsm), type(uint256).max);
-
-        // pocket to give unlimited gem approval to the litePsm.
-        vm.prank(address(pocket));
-        gem.approve(address(litePsm), type(uint256).max);
-
-        // Setup the vow for litePsm
-        litePsm.file("vow", address(dss.vow));
-
-        buf = 10_000_000 * WAD;
-        litePsm.file("buf", buf);
 
         vm.label(address(dss.vat), "Vat");
         vm.label(address(dss.dai), "Dai");
@@ -935,7 +987,11 @@ abstract contract DssLitePsmBaseTest is DssTest {
         assertEq(gemJoin.ilk(), litePsm.ilk(), "gemJoinCompatibility/invalid-ref: ilk mismatch");
         assertEq(gemJoin.dec(), litePsm.dec(), "gemJoinCompatibility/invalid-ref: dec mismatch on litePsm");
         assertEq(gemJoin.dec(), gem.decimals(), "gemJoinCompatibility/invalid-ref: dec mismatch on gem");
-        assertEq(gemJoin.wards(address(this)), litePsm.wards(address(this)), "gemJoinCompatibility/invalid-ref: wards mismatch");
+        assertEq(
+            gemJoin.wards(address(this)),
+            litePsm.wards(address(this)),
+            "gemJoinCompatibility/invalid-ref: wards mismatch"
+        );
     }
 
     /*//////////////////////////////////
@@ -1057,13 +1113,14 @@ contract DssLitePsmUsdcTest is DssLitePsmBaseTest {
         return "LITE_PSM_USDC_A";
     }
 
-    function _setUpGem() internal override returns (address) {
+    function _setUpGem() internal override returns (GemLike, address) {
         address _gem = dss.chainlog.getAddress("USDC");
+        address _pip = dss.chainlog.getAddress("PIP_USDC");
         // Mints 100_000_000 gem into the test contract.
         GodMode.setBalance(_gem, address(this), 100_000_000 * (10 ** GemLike(_gem).decimals()));
         vm.label(_gem, "USDC");
 
-        return _gem;
+        return (GemLike(_gem), _pip);
     }
 
     function testBuyGem_Revert_WhenPocketHasNoGem() public {
