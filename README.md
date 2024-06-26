@@ -1,6 +1,6 @@
 # `dss-lite-psm`
 
-Lightweight Peg Stability Module (PSM) implementation.
+Lightweight Peg Stability Module (LitePSM) implementation.
 
 ## Table of Contents
 
@@ -21,8 +21,11 @@ Lightweight Peg Stability Module (PSM) implementation.
 
 ## Deployments
 
-- Mainnet: \[TBD\]
-- Goerli: \[TBD\]
+| Network          | Chain ID | Gem          | LitePSM Address | Pocket Address |
+| :------          | -------: | :--          | :-------------- | :------------- |
+| Ethereum Mainnet | 1        | [USDC][usdc] | \[TBD\]         | \[TBD\]        |
+
+  [usdc]: https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48
 
 ## Overview
 
