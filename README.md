@@ -185,7 +185,7 @@ Then simply run:
 forge test -vvv
 ```
 
-[psm]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
+[psm]: https://github.com/makerdao/dss-psm/blob/master/src/psm.sol
 [psm-v2]: https://github.com/makerdao/dss-psm/blob/v2/src/psm.sol
 [auto-line]: https://etherscan.io/address/0xc7bdd1f2b16447dcf3de045c4a039a60ec2f0ba3
 [gem-join-8]: https://github.com/makerdao/dss-psm/blob/master/src/join-8-auth.sol#L36
