@@ -24,7 +24,6 @@ struct DssLitePsmMigrationConfigPhase2 {
     uint256 dstMaxLine; // [rad]
     uint256 dstGap; // [rad]
     uint256 dstTtl; // [seconds]
-    uint256 dstWant; // [wad]
     bytes32 srcPsmKey;
     uint256 srcTin; // [wad] - 10**18 = 100%
     uint256 srcTout; // [wad] - 10**18 = 100%
@@ -92,7 +91,7 @@ library DssLitePsmMigrationPhase2 {
                 srcPsmKey: cfg.srcPsmKey,
                 dstPsmKey: cfg.dstPsmKey,
                 srcKeep: cfg.srcKeep,
-                dstWant: cfg.dstWant
+                dstWant: type(uint256).max
             })
         );
 

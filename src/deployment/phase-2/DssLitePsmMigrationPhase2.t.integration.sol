@@ -157,7 +157,6 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
             dstMaxLine: 7_500_000_000 * RAD,
             dstGap: 300_000_000 * RAD,
             dstTtl: 12 hours,
-            dstWant: type(uint256).max,
             srcPsmKey: SRC_PSM_KEY,
             srcTin: 0.0001 ether, // 0.01%
             srcTout: 0.0001 ether, // 0.01%
@@ -284,7 +283,7 @@ contract DssLitePsmMigrationPhase2Test is DssTest {
         uint256 pdstVatGem = dss.vat.gem(DST_ILK, address(dstPsm));
         uint256 pdstGemBalance = gem.balanceOf(address(pocket));
 
-        uint256 expectedMoveWad = _min(psrcInk, _min(mig2Cfg.dstWant, _subcap(psrcInk, mig2Cfg.srcKeep)));
+        uint256 expectedMoveWad = _min(psrcInk, _subcap(psrcInk, mig2Cfg.srcKeep));
 
         // Simulate a spell casting for migration
         vm.prank(address(pause));
