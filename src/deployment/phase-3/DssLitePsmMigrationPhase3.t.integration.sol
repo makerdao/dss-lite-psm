@@ -164,7 +164,6 @@ contract DssLitePsmMigrationPhase3Test is DssTest {
             dstMaxLine: 7_500_000_000 * RAD,
             dstGap: 300_000_000 * RAD,
             dstTtl: 12 hours,
-            dstWant: type(uint256).max,
             srcPsmKey: SRC_PSM_KEY,
             srcTin: 0.0001 ether, // 0.01%
             srcTout: 0.0001 ether, // 0.01%

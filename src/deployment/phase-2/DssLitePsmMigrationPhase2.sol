@@ -24,7 +24,6 @@ struct DssLitePsmMigrationConfigPhase2 {
     uint256 dstMaxLine; // [rad]
     uint256 dstGap; // [rad]
     uint256 dstTtl; // [seconds]
-    uint256 dstWant; // [wad]
     bytes32 srcPsmKey;
     uint256 srcTin; // [wad] - 10**18 = 100%
     uint256 srcTout; // [wad] - 10**18 = 100%
@@ -61,7 +60,7 @@ library DssLitePsmMigrationPhase2 {
          * There is a potential Flash Loan™ scenario where an attacker could:
          *
          *   1. Flash loan Dai.
-         *   2. Sell Dai into `srcPm` to leave only `srcKeep` there.
+         *   2. Sell Dai into `srcPsm` to leave only `srcKeep` there.
          *   3. Cast the spell - effectively nothing will be migrated because of the `srcKeep` constraint.
          *   4. Sell the gems obtained in step 2 back into `srcPsm`.
          *
@@ -75,7 +74,7 @@ library DssLitePsmMigrationPhase2 {
          * There is a second potential Flash Loan™ scenario where anyone could:
          *
          *   1. Flash loan Dai.
-         *   2. Sell Dai into `srcPm` to leave it empty.
+         *   2. Sell Dai into `srcPsm` to leave it empty.
          *   3. Sell the gems obtained in step 2 into `dstPsm`.
          *
          * The outcome of this would be that anyone could force a full migration right after phase 2.
@@ -92,7 +91,7 @@ library DssLitePsmMigrationPhase2 {
                 srcPsmKey: cfg.srcPsmKey,
                 dstPsmKey: cfg.dstPsmKey,
                 srcKeep: cfg.srcKeep,
-                dstWant: cfg.dstWant
+                dstWant: type(uint256).max
             })
         );
 
