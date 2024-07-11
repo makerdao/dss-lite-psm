@@ -21,11 +21,17 @@ Lightweight Peg Stability Module (LitePSM) implementation.
 
 ## Deployments
 
-| Network          | Chain ID | Gem          | LitePSM Address | Pocket Address |
-| :------          | -------: | :--          | :-------------- | :------------- |
-| Ethereum Mainnet | 1        | [USDC][usdc] | \[TBD\]         | \[TBD\]        |
+| Network          | Chain ID | Description  | Address                                                                                                               |
+| :------          | -------: | :----------  | :------                                                                                                               |
+| Ethereum Mainnet | 1        | Gem (USDC)   | [`0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48`][usdc] |
+|                  |          | Lite PSM     | [`0xf6e72Db5454dd049d0788e411b06CfAF16853042`][lite-psm]                                                              |
+|                  |          | Pocket       | [`0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341`][pocket]                                                                |
+|                  |          | Lite PSM Mom | [`0x467b32b0407Ad764f56304420Cddaa563bDab425`][lite-psm-mom]                                                          |
 
   [usdc]: https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48
+  [lite-psm]: https://etherscan.io/address/0xf6e72Db5454dd049d0788e411b06CfAF16853042
+  [pocket]: https://etherscan.io/address/0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341
+  [lite-psm-mom]: https://etherscan.io/address/0x467b32b0407Ad764f56304420Cddaa563bDab425#code
 
 ## Overview
 
