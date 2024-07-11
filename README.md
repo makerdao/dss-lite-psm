@@ -28,10 +28,10 @@ Lightweight Peg Stability Module (LitePSM) implementation.
 |                  |          | Pocket       | [`0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341`][pocket]                                                                |
 |                  |          | Lite PSM Mom | [`0x467b32b0407Ad764f56304420Cddaa563bDab425`][lite-psm-mom]                                                          |
 
-  [usdc]: https://etherscan.io/address/0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48
+  [usdc]: https://etherscan.io/address/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
   [lite-psm]: https://etherscan.io/address/0xf6e72Db5454dd049d0788e411b06CfAF16853042
   [pocket]: https://etherscan.io/address/0x37305B1cD40574E4C5Ce33f8e8306Be057fD7341
-  [lite-psm-mom]: https://etherscan.io/address/0x467b32b0407Ad764f56304420Cddaa563bDab425#code
+  [lite-psm-mom]: https://etherscan.io/address/0x467b32b0407Ad764f56304420Cddaa563bDab425
 
 ## Overview
 
