@@ -1,0 +1,5 @@
+{
+  "ilk": "string: the ilk for the deployed PSM",
+  "gemId": "string: the identifier for `gem` in the Chainlog",
+  "pocket": "address: the address holding `gem` on behalf of the `LitePsm` instance"
+}
