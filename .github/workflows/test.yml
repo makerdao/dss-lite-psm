@@ -1,9 +1,15 @@
 name: test
 
-on: workflow_dispatch
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
 
 env:
   FOUNDRY_PROFILE: ci
+  ETH_RPC_URL: ${{ secrets.ETH_RPC_URL }}
 
 jobs:
   check:
